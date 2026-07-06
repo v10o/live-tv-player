@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:startColor="#04140c"
+                android:centerColor="#0a0a0f"
+                android:endColor="#16161f"
+                android:angle="135" />
+            <size
+                android:width="320dp"
+                android:height="180dp" />
+        </shape>
+    </item>
+
+    <!-- TV Icon with play button (centered) -->
+    <item
+        android:gravity="center"
+        android:width="120dp"
+        android:height="80dp">
+        <vector
+            android:width="120dp"
+            android:height="80dp"
+            android:viewportWidth="120"
+            android:viewportHeight="80">
+
+            <!-- TV Screen frame -->
+            <path
+                android:fillColor="#1ce783"
+                android:pathData="M10,5h100a5,5 0,0 1,5 5v50a5,5 0,0 1,-5 5h-100a5,5 0,0 1,-5 -5v-50a5,5 0,0 1,5 -5z"/>
+
+            <!-- TV Screen inner (dark) -->
+            <path
+                android:fillColor="#0a0a0f"
+                android:pathData="M14,9h92a3,3 0,0 1,3 3v46a3,3 0,0 1,-3 3h-92a3,3 0,0 1,-3 -3v-46a3,3 0,0 1,3 -3z"/>
+
+            <!-- Play button triangle -->
+            <path
+                android:fillColor="#1ce783"
+                android:pathData="M50,20l24,15l-24,15z"/>
+
+            <!-- TV Stand -->
+            <path
+                android:fillColor="#1ce783"
+                android:pathData="M35,65h50v3h-50zM42,68v5h6v-5zM72,68v5h6v-5z"/>
+        </vector>
+    </item>
+</layer-list>
