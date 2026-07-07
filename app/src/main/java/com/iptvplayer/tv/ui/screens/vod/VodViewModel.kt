@@ -29,12 +29,13 @@ class VodViewModel @Inject constructor(
     fun loadVod(playlistId: String, forceReload: Boolean = false) {
         android.util.Log.d("VodVM", "loadVod called with playlistId=$playlistId, currentPlaylistId=$currentPlaylistId, force=$forceReload")
 
-        if (!forceReload && currentPlaylistId == playlistId && _uiState.value.vodItems.isNotEmpty()) {
+        // Always update currentPlaylistId for refresh to work
+        currentPlaylistId = playlistId
+
+        if (!forceReload && _uiState.value.vodItems.isNotEmpty()) {
             android.util.Log.d("VodVM", "Skipping - already loaded ${_uiState.value.vodItems.size} items")
             return
         }
-
-        currentPlaylistId = playlistId
         currentPage = 0
         hasMoreItems = true
         _uiState.value = _uiState.value.copy(isLoading = true, vodItems = emptyList())

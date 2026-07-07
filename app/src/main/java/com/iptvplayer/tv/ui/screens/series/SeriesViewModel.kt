@@ -29,12 +29,13 @@ class SeriesViewModel @Inject constructor(
     fun loadSeries(playlistId: String, forceReload: Boolean = false) {
         android.util.Log.d("SeriesVM", "loadSeries called with playlistId=$playlistId, currentPlaylistId=$currentPlaylistId, force=$forceReload")
 
-        if (!forceReload && currentPlaylistId == playlistId && _uiState.value.seriesItems.isNotEmpty()) {
+        // Always update currentPlaylistId for refresh to work
+        currentPlaylistId = playlistId
+
+        if (!forceReload && _uiState.value.seriesItems.isNotEmpty()) {
             android.util.Log.d("SeriesVM", "Skipping - already loaded ${_uiState.value.seriesItems.size} items")
             return
         }
-
-        currentPlaylistId = playlistId
         currentPage = 0
         hasMoreItems = true
         _uiState.value = _uiState.value.copy(isLoading = true, seriesItems = emptyList())

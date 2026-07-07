@@ -2,6 +2,11 @@ package com.iptvplayer.tv.ui.screens.series
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -176,7 +181,12 @@ private fun SeriesHeader(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Text("📺", fontSize = 48.sp)
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = NovaColors.TextMuted
+                    )
                 }
             }
 
@@ -197,7 +207,16 @@ private fun SeriesHeader(
                         Text("SERIES", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                     uiState.rating?.let {
-                        Text("⭐ $it", color = NovaColors.TextMuted, fontSize = 12.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = NovaColors.Primary
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("$it", color = NovaColors.TextMuted, fontSize = 12.sp)
+                        }
                     }
                     Text(
                         "${uiState.seasons.size} Seasons",
@@ -423,11 +442,20 @@ private fun EpisodeCard(
                     )
                 }
                 episode.rating?.let {
-                    Text(
-                        text = "⭐ %.1f".format(it),
-                        color = NovaColors.TextMuted,
-                        fontSize = 12.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = NovaColors.Primary
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "%.1f".format(it),
+                            color = NovaColors.TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
@@ -462,17 +490,13 @@ private fun LoadingState() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NovaColors.Background),
+            .background(Color.Black.copy(alpha = 0.5f)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            androidx.compose.material3.CircularProgressIndicator(
-                color = NovaColors.Primary,
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Loading series...", color = NovaColors.TextMuted, fontSize = 18.sp)
-        }
+        androidx.compose.material3.CircularProgressIndicator(
+            color = NovaColors.Primary,
+            modifier = Modifier.size(48.dp)
+        )
     }
 }
 
@@ -485,7 +509,12 @@ private fun ErrorState(error: String, onBackPress: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("❌", fontSize = 64.sp)
+            Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = NovaColors.Secondary
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(error, color = NovaColors.TextMuted, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(24.dp))

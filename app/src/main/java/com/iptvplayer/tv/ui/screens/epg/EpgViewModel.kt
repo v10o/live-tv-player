@@ -62,8 +62,14 @@ class EpgViewModel @Inject constructor(
         }
     }
 
-    fun loadEpg(playlistId: String) {
+    fun loadEpg(playlistId: String, forceReload: Boolean = false) {
+        // Always update currentPlaylistId for refresh to work
         currentPlaylistId = playlistId
+
+        // Skip if already loaded
+        if (!forceReload && _uiState.value.channels.isNotEmpty()) {
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
@@ -246,7 +252,7 @@ class EpgViewModel @Inject constructor(
                     isRefreshing = false,
                     lastUpdated = System.currentTimeMillis()
                 )
-                loadEpg(currentPlaylistId)
+                loadEpg(currentPlaylistId, forceReload = true)
                 android.util.Log.d("EpgVM", "Channel refresh complete")
             } catch (e: Exception) {
                 android.util.Log.e("EpgVM", "Refresh exception: ${e.message}", e)
@@ -280,7 +286,7 @@ class EpgViewModel @Inject constructor(
             "Infomercials" to 30
         )
 
-        return channels.take(50).mapIndexed { index, channel ->
+        return channels.mapIndexed { index, channel ->
             val programs = mutableListOf<EpgProgram>()
             var currentStart = gridStart - (60 * 60 * 1000) // Start 1 hour before grid
 

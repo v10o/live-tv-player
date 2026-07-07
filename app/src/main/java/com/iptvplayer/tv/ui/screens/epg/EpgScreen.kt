@@ -87,33 +87,14 @@ fun EpgScreen(
         onBackPress()
     }
 
-    // Show full loading state
-    if (uiState.isLoading) {
-        Box(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(NovaColors.Background),
-            contentAlignment = Alignment.Center
+                .background(NovaColors.Background)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(
-                    color = NovaColors.Primary,
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Text("Loading channels...", color = NovaColors.TextMuted, fontSize = 18.sp)
-            }
-        }
-        return
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NovaColors.Background)
-    ) {
-        // Top Navigation Bar
-        TopNavBar(
+            // Top Navigation Bar
+            TopNavBar(
             selectedItem = TopNavItem.LIVE_TV,
             onItemSelected = { item ->
                 when (item) {
@@ -181,6 +162,22 @@ fun EpgScreen(
                     }
                 }
             )
+            }
+        }
+        }
+
+        // Loading overlay on top of content
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = NovaColors.Primary,
+                    modifier = Modifier.size(48.dp)
+                )
             }
         }
     }

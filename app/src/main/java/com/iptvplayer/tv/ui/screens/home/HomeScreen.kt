@@ -8,8 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -295,23 +296,13 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(NovaColors.Background.copy(alpha = 0.9f)),
+                        .background(Color.Black.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            color = NovaColors.Primary,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = "Loading...",
-                            color = NovaColors.TextMuted,
-                            fontSize = 16.sp
-                        )
-                    }
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = NovaColors.Primary,
+                        modifier = Modifier.size(48.dp)
+                    )
                 }
             }
         }
@@ -415,15 +406,22 @@ private fun WelcomeHero(onAddClick: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(24.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatBadge(label = "Live TV", icon = "📺")
-                StatBadge(label = "Movies", icon = "🎬")
-                StatBadge(label = "Series", icon = "📚")
+                StatBadge(label = "Live TV", icon = Icons.Default.LiveTv)
+                StatBadge(label = "Movies", icon = Icons.Default.Movie)
+                StatBadge(label = "Series", icon = Icons.Default.VideoLibrary)
             }
             Spacer(modifier = Modifier.height(24.dp))
+            var addBtnFocused by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
+                    .scale(if (addBtnFocused) 1.05f else 1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(NovaColors.Primary)
+                    .then(
+                        if (addBtnFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(8.dp))
+                        else Modifier
+                    )
+                    .onFocusChanged { addBtnFocused = it.isFocused }
                     .clickable(onClick = onAddClick)
                     .focusable()
                     .padding(horizontal = 24.dp, vertical = 12.dp)
@@ -440,7 +438,7 @@ private fun WelcomeHero(onAddClick: () -> Unit) {
 }
 
 @Composable
-private fun StatBadge(label: String, icon: String) {
+private fun StatBadge(label: String, icon: ImageVector) {
     Row(
         modifier = Modifier
             .background(
@@ -451,7 +449,12 @@ private fun StatBadge(label: String, icon: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(text = icon, fontSize = 14.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = NovaColors.TextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
         Text(
             text = label,
             color = NovaColors.TextSecondary,
@@ -489,17 +492,24 @@ private fun PlaylistsSection(
         }
 
         if (showAddButton) {
+            var isFocused by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
+                    .scale(if (isFocused) 1.05f else 1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(NovaColors.Primary.copy(alpha = 0.15f))
+                    .background(if (isFocused) NovaColors.Primary else NovaColors.Primary.copy(alpha = 0.15f))
+                    .then(
+                        if (isFocused) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                        else Modifier
+                    )
+                    .onFocusChanged { isFocused = it.isFocused }
                     .clickable(onClick = onAddClick)
                     .focusable()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "+ Add",
-                    color = NovaColors.Primary,
+                    color = if (isFocused) Color.Black else NovaColors.Primary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -510,6 +520,8 @@ private fun PlaylistsSection(
 
 @Composable
 private fun EmptyPlaylistsState(onAddClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -530,8 +542,14 @@ private fun EmptyPlaylistsState(onAddClick: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
             Box(
                 modifier = Modifier
+                    .scale(if (isFocused) 1.05f else 1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(NovaColors.Primary)
+                    .then(
+                        if (isFocused) Modifier.border(3.dp, Color.White, RoundedCornerShape(8.dp))
+                        else Modifier
+                    )
+                    .onFocusChanged { isFocused = it.isFocused }
                     .clickable(onClick = onAddClick)
                     .focusable()
                     .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -622,9 +640,11 @@ private fun TrendingCard(
                     .background(NovaColors.SurfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (item.mediaType == "movie") "🎬" else "📺",
-                    fontSize = 40.sp
+                Icon(
+                    imageVector = if (item.mediaType == "movie") Icons.Default.Movie else Icons.Default.Tv,
+                    contentDescription = null,
+                    tint = NovaColors.TextMuted,
+                    modifier = Modifier.size(48.dp)
                 )
             }
         }
@@ -663,15 +683,23 @@ private fun TrendingCard(
         }
 
         // Rating badge
-        Box(
+        Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(8.dp)
                 .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                tint = Color(0xFFFFD700),
+                modifier = Modifier.size(12.dp)
+            )
             Text(
-                text = "⭐ ${item.rating}",
+                text = item.rating,
                 color = Color.White,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold

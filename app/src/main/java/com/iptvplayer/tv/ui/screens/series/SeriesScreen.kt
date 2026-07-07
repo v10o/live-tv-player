@@ -2,6 +2,11 @@ package com.iptvplayer.tv.ui.screens.series
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -220,7 +225,12 @@ private fun EmptySeriesState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("📺", fontSize = 64.sp)
+            Icon(
+                imageVector = Icons.Default.Tv,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = NovaColors.TextMuted
+            )
 
             Text(
                 text = "No series found",
@@ -345,7 +355,12 @@ private fun CategoryItem(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "📺", fontSize = 16.sp)
+        Icon(
+            imageVector = Icons.Default.Tv,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = NovaColors.TextMuted
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = name,
@@ -410,7 +425,12 @@ private fun HeroPreview(
                         contentScale = ContentScale.Crop
                     )
                 } else {
-                    Text("📺", fontSize = 32.sp)
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = NovaColors.TextMuted
+                    )
                 }
             }
 
@@ -437,7 +457,16 @@ private fun HeroPreview(
                             Text(it, color = NovaColors.TextMuted, fontSize = 12.sp, maxLines = 1)
                         }
                         seriesItem.rating?.let {
-                            Text("⭐ $it", color = NovaColors.TextMuted, fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = NovaColors.Primary
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("$it", color = NovaColors.TextMuted, fontSize = 12.sp)
+                            }
                         }
                     }
 
@@ -538,7 +567,12 @@ private fun SeriesCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Text("📺", fontSize = 40.sp)
+                Icon(
+                    imageVector = Icons.Default.Tv,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = NovaColors.TextMuted
+                )
             }
 
             seriesItem.rating5based?.let { rating ->
@@ -549,12 +583,21 @@ private fun SeriesCard(
                         .background(NovaColors.Primary, RoundedCornerShape(6.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text(
-                        text = "⭐ %.1f".format(rating),
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(10.dp),
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "%.1f".format(rating),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -578,17 +621,13 @@ private fun LoadingState() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NovaColors.Background),
+            .background(Color.Black.copy(alpha = 0.5f)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            androidx.compose.material3.CircularProgressIndicator(
-                color = NovaColors.Primary,
-                modifier = Modifier.size(48.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Loading series...", color = NovaColors.TextMuted, fontSize = 18.sp)
-        }
+        androidx.compose.material3.CircularProgressIndicator(
+            color = NovaColors.Primary,
+            modifier = Modifier.size(48.dp)
+        )
     }
 }
 
@@ -601,7 +640,12 @@ private fun ErrorState(error: String, onBackPress: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("❌", fontSize = 64.sp)
+            Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = NovaColors.Secondary
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text(error, color = NovaColors.TextMuted, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(24.dp))

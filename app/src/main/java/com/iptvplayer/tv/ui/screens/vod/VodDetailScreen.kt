@@ -213,7 +213,16 @@ fun VodDetailScreen(
                             Text("MOVIE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                         uiState.rating?.let { rating ->
-                            Text("⭐ $rating", color = NovaColors.TextMuted, fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = NovaColors.Primary
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("$rating", color = NovaColors.TextMuted, fontSize = 12.sp)
+                            }
                         }
                         uiState.year?.let { year ->
                             Text(year, color = NovaColors.TextMuted, fontSize = 12.sp)
@@ -489,11 +498,20 @@ private fun SourceItem(
                     }
                 }
                 link.vodItem.rating5based?.let { rating ->
-                    Text(
-                        text = "⭐ %.1f".format(rating),
-                        color = NovaColors.TextMuted,
-                        fontSize = 12.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = NovaColors.Primary
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "%.1f".format(rating),
+                            color = NovaColors.TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
         }

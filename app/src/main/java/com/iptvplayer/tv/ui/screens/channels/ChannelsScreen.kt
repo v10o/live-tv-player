@@ -583,18 +583,13 @@ private fun LoadingState() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(NovaColors.Background),
+            .background(Color.Black.copy(alpha = 0.5f)),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "📺", fontSize = 64.sp)
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "Loading channels...",
-                color = NovaColors.TextMuted,
-                fontSize = 18.sp
-            )
-        }
+        androidx.compose.material3.CircularProgressIndicator(
+            color = NovaColors.Primary,
+            modifier = Modifier.size(48.dp)
+        )
     }
 }
 
