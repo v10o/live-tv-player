@@ -9,8 +9,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import io.ktor.client.*
-import io.ktor.client.engine.android.*
+import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.*
+import java.util.concurrent.TimeUnit
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.logging.*
 import io.ktor.client.request.*
@@ -28,7 +29,7 @@ object AppModule {
     @Provides
     @Singleton
     fun provideHttpClient(): HttpClient {
-        return HttpClient(Android) {
+        return HttpClient(OkHttp) {
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -43,9 +44,9 @@ object AppModule {
             }
 
             install(HttpTimeout) {
-                requestTimeoutMillis = 120_000  // 2 min for large VOD catalogs
-                connectTimeoutMillis = 15_000
-                socketTimeoutMillis = 120_000   // 2 min for large responses
+                requestTimeoutMillis = 300_000  // 5 min for large VOD catalogs
+                connectTimeoutMillis = 30_000
+                socketTimeoutMillis = 300_000   // 5 min for large responses
             }
 
             defaultRequest {
@@ -54,8 +55,11 @@ object AppModule {
             }
 
             engine {
-                connectTimeout = 15_000
-                socketTimeout = 120_000  // 2 min for large responses
+                config {
+                    connectTimeout(30, TimeUnit.SECONDS)
+                    readTimeout(5, TimeUnit.MINUTES)  // 5 min for 2M items
+                    writeTimeout(30, TimeUnit.SECONDS)
+                }
             }
         }
     }
@@ -68,7 +72,7 @@ object AppModule {
             AppDatabase::class.java,
             "iptv_database"
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .fallbackToDestructiveMigration()  // Safety net for DB issues
             .build()
     }
@@ -96,4 +100,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSeriesDao(database: AppDatabase): SeriesDao = database.seriesDao()
+
+    @Provides
+    @Singleton
+    fun provideWatchlistDao(database: AppDatabase): WatchlistDao = database.watchlistDao()
 }

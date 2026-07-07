@@ -142,6 +142,7 @@ class SeriesViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             selectedCategory = category,
             seriesItems = emptyList(),
+            selectedItemId = null,  // Clear selection so first item gets auto-selected
             isLoading = true
         )
 
@@ -184,6 +185,65 @@ class SeriesViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * Refresh series data from API (clears cache and re-fetches)
+     */
+    fun refresh() {
+        if (currentPlaylistId.isEmpty()) return
+        if (_uiState.value.isLoading || _uiState.value.isRefreshing) return
+
+        // Show full loading state - clear content
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            isRefreshing = true,
+            seriesItems = emptyList(),
+            selectedCategory = null,
+            error = null
+        )
+
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("SeriesVM", "Refreshing series data...")
+                // Re-fetch from API (loadSeriesForPlaylist handles clearing old data after successful fetch)
+                val loadResult = vodRepository.loadSeriesForPlaylist(currentPlaylistId)
+
+                if (loadResult.isFailure) {
+                    android.util.Log.e("SeriesVM", "Refresh failed: ${loadResult.exceptionOrNull()?.message}")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = "Refresh failed: ${loadResult.exceptionOrNull()?.message}"
+                    )
+                    return@launch
+                }
+
+                // Reload categories and items
+                val categories = vodRepository.getSeriesCategories(currentPlaylistId)
+                val totalCount = vodRepository.getSeriesCount(currentPlaylistId)
+                currentPage = 0
+                hasMoreItems = true
+
+                _uiState.value = _uiState.value.copy(
+                    categories = categories,
+                    totalCount = totalCount,
+                    lastUpdated = System.currentTimeMillis()
+                )
+
+                loadPage()
+
+                _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
+                android.util.Log.d("SeriesVM", "Series refresh complete. Items: ${_uiState.value.seriesItems.size}")
+            } catch (e: Exception) {
+                android.util.Log.e("SeriesVM", "Refresh exception: ${e.message}", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isRefreshing = false,
+                    error = "Refresh failed: ${e.message}"
+                )
+            }
+        }
+    }
 }
 
 data class SeriesUiState(
@@ -194,7 +254,9 @@ data class SeriesUiState(
     val selectedItemId: String? = null,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
+    val isRefreshing: Boolean = false,
     val canLoadMore: Boolean = true,
     val totalCount: Int = 0,
-    val error: String? = null
+    val error: String? = null,
+    val lastUpdated: Long = 0L
 )

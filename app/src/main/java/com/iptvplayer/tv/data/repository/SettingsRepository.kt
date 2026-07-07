@@ -4,10 +4,12 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +20,34 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    companion object {
+        private val TMDB_API_KEY = stringPreferencesKey("tmdb_api_key")
+    }
+
+    /**
+     * Get TMDB API key
+     */
+    fun getTmdbApiKey(): Flow<String> {
+        return context.dataStore.data.map { prefs ->
+            prefs[TMDB_API_KEY] ?: ""
+        }
+    }
+
+    /**
+     * Get TMDB API key synchronously (for service initialization)
+     */
+    suspend fun getTmdbApiKeyOnce(): String {
+        return context.dataStore.data.first()[TMDB_API_KEY] ?: ""
+    }
+
+    /**
+     * Set TMDB API key
+     */
+    suspend fun setTmdbApiKey(apiKey: String) {
+        context.dataStore.edit { prefs ->
+            prefs[TMDB_API_KEY] = apiKey.trim()
+        }
+    }
     /**
      * Get hidden groups for a playlist.
      * Returns set of group names that should be hidden.

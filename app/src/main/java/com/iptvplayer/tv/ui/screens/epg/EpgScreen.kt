@@ -39,6 +39,8 @@ import coil.compose.AsyncImage
 import com.iptvplayer.tv.data.model.EpgChannel
 import com.iptvplayer.tv.data.model.EpgProgram
 import com.iptvplayer.tv.player.PlayerState
+import com.iptvplayer.tv.ui.components.TopNavBar
+import com.iptvplayer.tv.ui.components.TopNavItem
 import com.iptvplayer.tv.ui.theme.NovaColors
 import java.text.SimpleDateFormat
 import java.util.*
@@ -53,10 +55,16 @@ fun EpgScreen(
     playlistId: String,
     onChannelClick: (String) -> Unit,
     onBackPress: () -> Unit,
+    onHomeClick: () -> Unit = {},
+    onMoviesClick: () -> Unit = {},
+    onShowsClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     viewModel: EpgViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerState.collectAsState()
+    val currentPlayingChannelId by viewModel.currentPlayingChannelId.collectAsState()
     val gridFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(playlistId) {
@@ -79,19 +87,59 @@ fun EpgScreen(
         onBackPress()
     }
 
-    Row(
+    // Show full loading state
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NovaColors.Background),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(
+                    color = NovaColors.Primary,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Loading channels...", color = NovaColors.TextMuted, fontSize = 18.sp)
+            }
+        }
+        return
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NovaColors.Background)
     ) {
-        // Left sidebar
-        EpgSidebar(
-            currentTime = uiState.currentTime,
-            selectedCategory = uiState.selectedCategory,
-            categories = uiState.categories,
-            onCategorySelected = { viewModel.selectCategory(it) },
-            onBackPress = onBackPress
+        // Top Navigation Bar
+        TopNavBar(
+            selectedItem = TopNavItem.LIVE_TV,
+            onItemSelected = { item ->
+                when (item) {
+                    TopNavItem.HOME -> onHomeClick()
+                    TopNavItem.LIVE_TV -> { /* Already here */ }
+                    TopNavItem.MOVIES -> onMoviesClick()
+                    TopNavItem.SHOWS -> onShowsClick()
+                    TopNavItem.WATCHLIST -> onHomeClick()
+                    TopNavItem.SEARCH -> onSearchClick()
+                }
+            },
+            onSettingsClick = onSettingsClick,
+            onRefreshClick = { viewModel.refresh() },
+            isRefreshing = uiState.isRefreshing
         )
+
+        Row(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Left sidebar
+            EpgSidebar(
+                currentTime = uiState.currentTime,
+                selectedCategory = uiState.selectedCategory,
+                categories = uiState.categories,
+                onCategorySelected = { viewModel.selectCategory(it) }
+            )
 
         // Main content
         Column(modifier = Modifier.weight(1f)) {
@@ -114,16 +162,26 @@ fun EpgScreen(
                 startTime = uiState.gridStartTime,
                 selectedProgram = uiState.selectedProgram,
                 selectedChannelId = uiState.selectedProgram?.channelId,
+                currentPlayingChannelId = currentPlayingChannelId,
                 focusRequester = gridFocusRequester,
                 onProgramSelected = { viewModel.selectProgram(it) },
                 onProgramClick = { program ->
-                    // Find channel and play
+                    // Find channel
                     val channel = uiState.channels.find { ch ->
                         ch.programs.any { it.id == program.id }
                     }
-                    channel?.let { onChannelClick(it.id) }
+                    channel?.let { ch ->
+                        if (viewModel.isChannelPlaying(ch.id)) {
+                            // Second click on playing channel → full player
+                            onChannelClick(ch.id)
+                        } else {
+                            // First click → play in mini player
+                            viewModel.playChannelById(ch.id, ch.url)
+                        }
+                    }
                 }
             )
+            }
         }
     }
 }
@@ -133,8 +191,7 @@ private fun EpgSidebar(
     currentTime: Long,
     selectedCategory: String,
     categories: List<String>,
-    onCategorySelected: (String) -> Unit,
-    onBackPress: () -> Unit
+    onCategorySelected: (String) -> Unit
 ) {
     val timeFormat = remember { SimpleDateFormat("h:mma", Locale.getDefault()) }
 
@@ -428,6 +485,7 @@ private fun EpgGrid(
     startTime: Long,
     selectedProgram: EpgProgram?,
     selectedChannelId: String?,
+    currentPlayingChannelId: String?,
     focusRequester: FocusRequester,
     onProgramSelected: (EpgProgram) -> Unit,
     onProgramClick: (EpgProgram) -> Unit
@@ -512,6 +570,7 @@ private fun EpgGrid(
                     startTime = startTime,
                     currentTime = currentTime,
                     selectedProgram = selectedProgram,
+                    isPlaying = channel.id == currentPlayingChannelId,
                     scrollState = scrollState,
                     focusRequester = if (shouldFocus) focusRequester else null,
                     onProgramSelected = onProgramSelected,
@@ -528,6 +587,7 @@ private fun EpgChannelRow(
     startTime: Long,
     currentTime: Long,
     selectedProgram: EpgProgram?,
+    isPlaying: Boolean,
     scrollState: androidx.compose.foundation.ScrollState,
     focusRequester: FocusRequester?,
     onProgramSelected: (EpgProgram) -> Unit,
@@ -614,6 +674,7 @@ private fun EpgChannelRow(
                     width = width,
                     isSelected = selectedProgram?.id == program.id,
                     isCurrentlyAiring = program.isCurrentlyAiring(currentTime),
+                    isPlaying = isPlaying,
                     focusRequester = programFocusRequester,
                     onFocus = { onProgramSelected(program) },
                     onClick = { onProgramClick(program) }
@@ -629,6 +690,7 @@ private fun ProgramBlock(
     width: Dp,
     isSelected: Boolean,
     isCurrentlyAiring: Boolean,
+    isPlaying: Boolean,
     focusRequester: FocusRequester?,
     onFocus: () -> Unit,
     onClick: () -> Unit
@@ -636,12 +698,14 @@ private fun ProgramBlock(
     var isFocused by remember { mutableStateOf(false) }
 
     val backgroundColor = when {
+        isPlaying -> NovaColors.Primary.copy(alpha = 0.4f)
         isSelected || isFocused -> NovaColors.Primary.copy(alpha = 0.3f)
         isCurrentlyAiring -> NovaColors.Surface
         else -> NovaColors.SurfaceVariant.copy(alpha = 0.5f)
     }
 
     val borderColor = when {
+        isPlaying -> NovaColors.Primary
         isSelected || isFocused -> NovaColors.Primary
         else -> NovaColors.Border.copy(alpha = 0.3f)
     }
@@ -672,16 +736,30 @@ private fun ProgramBlock(
         modifier = modifier,
         contentAlignment = Alignment.CenterStart
     ) {
-        Text(
-            text = program.title,
-            color = when {
-                isSelected || isFocused -> NovaColors.TextPrimary
-                else -> NovaColors.TextSecondary
-            },
-            fontSize = 13.sp,
-            fontWeight = if (isSelected || isFocused) FontWeight.Medium else FontWeight.Normal,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Playing indicator
+            if (isPlaying) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(NovaColors.Primary, RoundedCornerShape(4.dp))
+                )
+            }
+            Text(
+                text = program.title,
+                color = when {
+                    isPlaying -> NovaColors.TextPrimary
+                    isSelected || isFocused -> NovaColors.TextPrimary
+                    else -> NovaColors.TextSecondary
+                },
+                fontSize = 13.sp,
+                fontWeight = if (isPlaying || isSelected || isFocused) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

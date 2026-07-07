@@ -1,6 +1,7 @@
 package com.iptvplayer.tv.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -10,27 +11,34 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.foundation.lazy.list.TvLazyRow
 import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.*
+import com.iptvplayer.tv.data.api.TmdbItem
+import com.iptvplayer.tv.data.local.WatchlistItem
 import com.iptvplayer.tv.data.model.SeriesItem
 import com.iptvplayer.tv.data.model.VodItem
 import com.iptvplayer.tv.ui.components.AddPlaylistDialog
 import com.iptvplayer.tv.ui.components.ContentRow
 import com.iptvplayer.tv.ui.components.HeroCarousel
-import com.iptvplayer.tv.ui.components.NavItem
-import com.iptvplayer.tv.ui.components.NavRail
+import com.iptvplayer.tv.ui.components.TopNavBar
+import com.iptvplayer.tv.ui.components.TopNavItem
 import com.iptvplayer.tv.ui.components.PlaylistCard
 import com.iptvplayer.tv.ui.components.PlaylistOptionsDialog
 import com.iptvplayer.tv.ui.theme.NovaColors
@@ -43,8 +51,11 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onSearchClick: () -> Unit = {},
     onGuideClick: (String) -> Unit = {},
+    onWatchlistClick: () -> Unit = {},
     onVodItemClick: (VodItem) -> Unit = {},
     onSeriesItemClick: (SeriesItem) -> Unit = {},
+    onWatchlistItemClick: (WatchlistItem) -> Unit = {},
+    onTmdbMovieClick: (title: String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val playlists by viewModel.playlists.collectAsState(initial = emptyList())
@@ -52,7 +63,32 @@ fun HomeScreen(
     val addState by viewModel.addPlaylistState.collectAsState()
     val optionsState by viewModel.playlistOptionsState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
-    var selectedNav by remember { mutableStateOf(NavItem.HOME) }
+    var selectedNav by remember { mutableStateOf(TopNavItem.HOME) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Handler for TMDB item clicks - navigate to detail page
+    val onTmdbItemClick: (TmdbItem) -> Unit = { item ->
+        android.util.Log.d("HomeScreen", "TMDB click: ${item.displayTitle}, type=${item.mediaType}")
+        coroutineScope.launch {
+            if (item.mediaType == "movie" || item.mediaType == null) {
+                // Navigate to movie detail page (will find all matches there)
+                onTmdbMovieClick(item.displayTitle)
+            } else {
+                // Series - find and navigate
+                val match = viewModel.findContentByTitle(item.displayTitle, "tv")
+                android.util.Log.d("HomeScreen", "Series match result: $match")
+                if (match != null) {
+                    val (_, id) = match
+                    val parts = id.split("/")
+                    if (parts.size == 2) {
+                        val seriesItem = viewModel.getSeriesById(parts[0], parts[1].toIntOrNull() ?: 0)
+                        android.util.Log.d("HomeScreen", "Series found: ${seriesItem?.name}")
+                        seriesItem?.let { onSeriesItemClick(it) }
+                    }
+                }
+            }
+        }
+    }
 
     // Get first Xtream playlist for quick navigation (Live TV/Movies/Series need playlist context)
     val firstXtreamPlaylist = playlists.firstOrNull {
@@ -74,49 +110,40 @@ fun HomeScreen(
         viewModel.refreshDashboard()
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NovaColors.Background)
     ) {
-        // Sidebar Navigation
-        NavRail(
+        // Top Navigation Bar
+        TopNavBar(
             selectedItem = selectedNav,
             onItemSelected = { item ->
                 selectedNav = item
                 when (item) {
-                    NavItem.HOME -> { /* Already on home */ }
-                    NavItem.LIVE_TV -> {
-                        firstPlaylist?.let { onPlaylistClick(it.id) }
-                    }
-                    NavItem.GUIDE -> {
+                    TopNavItem.HOME -> { /* Already on home */ }
+                    TopNavItem.LIVE_TV -> {
                         firstPlaylist?.let { onGuideClick(it.id) }
                     }
-                    NavItem.MOVIES -> {
+                    TopNavItem.MOVIES -> {
                         firstXtreamPlaylist?.let { onVodClick(it.id) }
                     }
-                    NavItem.SERIES -> {
+                    TopNavItem.SHOWS -> {
                         firstXtreamPlaylist?.let { onSeriesClick(it.id) }
                     }
-                    NavItem.SETTINGS -> onSettingsClick()
+                    TopNavItem.WATCHLIST -> onWatchlistClick()
+                    TopNavItem.SEARCH -> onSearchClick()
                 }
-            }
+            },
+            onSettingsClick = onSettingsClick,
+            onRefreshClick = { viewModel.refreshDashboard() },
+            isRefreshing = dashboardState.isLoading
         )
 
         // Main Content
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 8.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Search button - top right
-            SearchButton(
-                onClick = onSearchClick,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 24.dp, end = 24.dp)
-            )
-
             TvLazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -168,6 +195,32 @@ fun HomeScreen(
                     }
                 }
 
+                // Trending Movies (Top 10)
+                if (dashboardState.trendingMovies.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        TrendingRow(
+                            title = "Top 10 Movies This Week",
+                            items = dashboardState.trendingMovies,
+                            getPosterUrl = { viewModel.getTmdbPosterUrl(it) },
+                            onItemClick = onTmdbItemClick
+                        )
+                    }
+                }
+
+                // Trending Shows (Top 10)
+                if (dashboardState.trendingShows.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        TrendingRow(
+                            title = "Top 10 Shows This Week",
+                            items = dashboardState.trendingShows,
+                            getPosterUrl = { viewModel.getTmdbPosterUrl(it) },
+                            onItemClick = onTmdbItemClick
+                        )
+                    }
+                }
+
                 // Recently Added
                 if (dashboardState.recentlyAdded.isNotEmpty()) {
                     item {
@@ -179,6 +232,22 @@ fun HomeScreen(
                                 when (item) {
                                     is VodItem -> onVodItemClick(item)
                                     is SeriesItem -> onSeriesItemClick(item)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                // My Watchlist
+                if (dashboardState.watchlist.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        ContentRow(
+                            title = "My Watchlist",
+                            items = dashboardState.watchlist,
+                            onItemClick = { item ->
+                                if (item is WatchlistItem) {
+                                    onWatchlistItemClick(item)
                                 }
                             }
                         )
@@ -218,6 +287,31 @@ fun HomeScreen(
                 // Bottom spacing
                 item {
                     Spacer(modifier = Modifier.height(48.dp))
+                }
+            }
+
+            // Full screen loading overlay
+            if (dashboardState.isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(NovaColors.Background.copy(alpha = 0.9f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            color = NovaColors.Primary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "Loading...",
+                            color = NovaColors.TextMuted,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
             }
         }
@@ -301,7 +395,7 @@ private fun WelcomeHero(onAddClick: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "nova",
+                    text = "live",
                     color = NovaColors.TextPrimary,
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold
@@ -454,29 +548,157 @@ private fun EmptyPlaylistsState(onAddClick: () -> Unit) {
 }
 
 @Composable
-private fun SearchButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun TrendingRow(
+    title: String,
+    items: List<TmdbItem>,
+    getPosterUrl: (String?) -> String?,
+    onItemClick: (TmdbItem) -> Unit = {}
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Text(
+            text = title,
+            color = NovaColors.TextPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+
+        TvLazyRow(
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(items, key = { it.id }) { item ->
+                TrendingCard(
+                    item = item,
+                    posterUrl = getPosterUrl(item.posterPath),
+                    onClick = { onItemClick(item) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrendingCard(
+    item: TmdbItem,
+    posterUrl: String?,
+    onClick: () -> Unit = {}
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
 
     Box(
-        modifier = modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .background(
-                if (isFocused) NovaColors.Primary else NovaColors.Surface.copy(alpha = 0.8f)
-            )
+        modifier = Modifier
+            .width(150.dp)
+            .height(240.dp)
+            .scale(if (isFocused) 1.08f else 1f)
+            .clip(shape)
+            .background(NovaColors.Surface)
             .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) {
+                    Modifier.border(3.dp, NovaColors.Primary, shape)
+                } else Modifier
+            )
             .clickable { onClick() }
-            .focusable(),
-        contentAlignment = Alignment.Center
+            .focusable()
     ) {
-        Icon(
-            imageVector = Icons.Default.Search,
-            contentDescription = "Search",
-            tint = if (isFocused) Color.Black else NovaColors.TextPrimary,
-            modifier = Modifier.size(24.dp)
+        // Poster image
+        if (posterUrl != null) {
+            AsyncImage(
+                model = posterUrl,
+                contentDescription = item.displayTitle,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(NovaColors.SurfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (item.mediaType == "movie") "🎬" else "📺",
+                    fontSize = 40.sp
+                )
+            }
+        }
+
+        // Gradient overlay at bottom
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.9f)
+                        )
+                    )
+                )
         )
+
+        // Rank badge (Top 10 style)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+                .size(32.dp)
+                .background(NovaColors.Primary, RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${item.rank}",
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Rating badge
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "⭐ ${item.rating}",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Title and year at bottom
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp)
+        ) {
+            Text(
+                text = item.displayTitle,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            item.year?.let { year ->
+                Text(
+                    text = year,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 11.sp
+                )
+            }
+        }
     }
 }

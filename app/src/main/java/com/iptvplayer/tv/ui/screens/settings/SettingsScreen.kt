@@ -19,15 +19,24 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,17 +57,29 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playlists by viewModel.playlists.collectAsState(initial = emptyList())
+    val savedTmdbApiKey by viewModel.tmdbApiKey.collectAsState(initial = "")
 
     var selectedPlayer by remember { mutableStateOf("ExoPlayer") }
     var bufferSize by remember { mutableStateOf("Medium") }
     var showGroupManager by remember { mutableStateOf(false) }
+    var tmdbApiKey by remember { mutableStateOf("") }
+    var showTmdbInput by remember { mutableStateOf(false) }
+
+    // Sync with saved value
+    LaunchedEffect(savedTmdbApiKey) {
+        tmdbApiKey = savedTmdbApiKey
+    }
 
     BackHandler {
-        if (showGroupManager) {
-            showGroupManager = false
-            viewModel.clearGroupSelection()
-        } else {
-            onBackPress()
+        when {
+            showGroupManager -> {
+                showGroupManager = false
+                viewModel.clearGroupSelection()
+            }
+            showTmdbInput -> {
+                showTmdbInput = false
+            }
+            else -> onBackPress()
         }
     }
 
@@ -82,11 +103,13 @@ fun SettingsScreen(
                     .clip(RoundedCornerShape(12.dp))
                     .background(NovaColors.Surface)
                     .clickable {
-                        if (showGroupManager) {
-                            showGroupManager = false
-                            viewModel.clearGroupSelection()
-                        } else {
-                            onBackPress()
+                        when {
+                            showGroupManager -> {
+                                showGroupManager = false
+                                viewModel.clearGroupSelection()
+                            }
+                            showTmdbInput -> showTmdbInput = false
+                            else -> onBackPress()
                         }
                     }
                     .focusable(),
@@ -102,13 +125,21 @@ fun SettingsScreen(
 
             Column {
                 Text(
-                    text = if (showGroupManager) "Manage Groups" else "Settings",
+                    text = when {
+                        showGroupManager -> "Manage Groups"
+                        showTmdbInput -> "TMDB API Key"
+                        else -> "Settings"
+                    },
                     color = NovaColors.TextPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = if (showGroupManager) "Show/hide channel groups" else "Configure your Live TV experience",
+                    text = when {
+                        showGroupManager -> "Show/hide channel groups"
+                        showTmdbInput -> "Enter your TMDB API key for trending content"
+                        else -> "Configure your Live TV experience"
+                    },
                     color = NovaColors.TextMuted,
                     fontSize = 14.sp
                 )
@@ -124,13 +155,25 @@ fun SettingsScreen(
                 onSelectAll = { viewModel.selectAll() },
                 onUnselectAll = { viewModel.unselectAll() }
             )
+        } else if (showTmdbInput) {
+            TmdbApiKeyInput(
+                currentKey = tmdbApiKey,
+                onSave = { key ->
+                    tmdbApiKey = key
+                    viewModel.saveTmdbApiKey(key)
+                    showTmdbInput = false
+                },
+                onCancel = { showTmdbInput = false }
+            )
         } else {
             SettingsContent(
                 selectedPlayer = selectedPlayer,
                 bufferSize = bufferSize,
+                tmdbApiKey = savedTmdbApiKey,
                 onPlayerChange = { selectedPlayer = it },
                 onBufferChange = { bufferSize = it },
-                onManageGroups = { showGroupManager = true }
+                onManageGroups = { showGroupManager = true },
+                onTmdbApiKeyClick = { showTmdbInput = true }
             )
         }
     }
@@ -140,9 +183,11 @@ fun SettingsScreen(
 private fun SettingsContent(
     selectedPlayer: String,
     bufferSize: String,
+    tmdbApiKey: String,
     onPlayerChange: (String) -> Unit,
     onBufferChange: (String) -> Unit,
-    onManageGroups: () -> Unit
+    onManageGroups: () -> Unit,
+    onTmdbApiKeyClick: () -> Unit
 ) {
     TvLazyColumn(
         contentPadding = PaddingValues(horizontal = 40.dp, vertical = 16.dp),
@@ -159,6 +204,21 @@ private fun SettingsContent(
                 title = "Manage Channel Groups",
                 subtitle = "Show or hide groups for each playlist",
                 onClick = onManageGroups
+            )
+        }
+
+        // TMDB Settings
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            SectionTitle(icon = Icons.Default.Movie, title = "TMDB (Trending)")
+        }
+
+        item {
+            SettingsItem(
+                icon = Icons.Default.Key,
+                title = "API Key",
+                subtitle = if (tmdbApiKey.isNotBlank()) "Configured ✓" else "Not configured - tap to add",
+                onClick = onTmdbApiKeyClick
             )
         }
 
@@ -572,5 +632,143 @@ private fun SettingsItem(
             tint = if (isFocused) NovaColors.Primary else NovaColors.TextMuted,
             modifier = Modifier.size(24.dp)
         )
+    }
+}
+
+@Composable
+private fun TmdbApiKeyInput(
+    currentKey: String,
+    onSave: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    var apiKey by remember { mutableStateOf(currentKey) }
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 40.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        // Instructions
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Get your free TMDB API key:",
+                color = NovaColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = "1. Register at themoviedb.org/signup",
+                color = NovaColors.TextMuted,
+                fontSize = 14.sp
+            )
+            Text(
+                text = "2. Go to themoviedb.org/settings/api",
+                color = NovaColors.TextMuted,
+                fontSize = 14.sp
+            )
+            Text(
+                text = "3. Copy \"API Key (v3 auth)\" and paste below",
+                color = NovaColors.TextMuted,
+                fontSize = 14.sp
+            )
+        }
+
+        // Input field
+        var isFocused by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(NovaColors.Surface)
+                .border(
+                    width = 2.dp,
+                    color = if (isFocused) NovaColors.Primary else NovaColors.Border,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(16.dp)
+        ) {
+            BasicTextField(
+                value = apiKey,
+                onValueChange = { apiKey = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { isFocused = it.isFocused },
+                textStyle = TextStyle(
+                    color = NovaColors.TextPrimary,
+                    fontSize = 16.sp
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onSave(apiKey) }),
+                decorationBox = { innerTextField ->
+                    if (apiKey.isEmpty()) {
+                        Text(
+                            text = "Enter API key...",
+                            color = NovaColors.TextMuted,
+                            fontSize = 16.sp
+                        )
+                    }
+                    innerTextField()
+                }
+            )
+        }
+
+        // Buttons
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Cancel button
+            var cancelFocused by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (cancelFocused) NovaColors.SurfaceVariant else NovaColors.Surface)
+                    .border(1.dp, NovaColors.Border, RoundedCornerShape(12.dp))
+                    .onFocusChanged { cancelFocused = it.isFocused }
+                    .clickable { onCancel() }
+                    .focusable()
+                    .padding(horizontal = 32.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    text = "Cancel",
+                    color = NovaColors.TextSecondary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            // Save button
+            var saveFocused by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (saveFocused) NovaColors.Primary else NovaColors.Primary.copy(alpha = 0.8f))
+                    .onFocusChanged { saveFocused = it.isFocused }
+                    .clickable { onSave(apiKey) }
+                    .focusable()
+                    .padding(horizontal = 32.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    text = "Save",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // Status
+        if (currentKey.isNotBlank()) {
+            Text(
+                text = "Current key: ${currentKey.take(8)}...${currentKey.takeLast(4)}",
+                color = NovaColors.TextMuted,
+                fontSize = 12.sp
+            )
+        }
     }
 }

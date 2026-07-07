@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.iptvplayer.tv.data.local.WatchlistItem
 import com.iptvplayer.tv.data.model.SeriesItem
 import com.iptvplayer.tv.data.model.VodItem
 import com.iptvplayer.tv.ui.theme.NovaColors
@@ -41,6 +42,7 @@ fun MediaCard(
         when (item) {
             is VodItem -> Triple(item.name, item.icon, item.rating5based)
             is SeriesItem -> Triple(item.name, item.cover, item.rating5based)
+            is WatchlistItem -> Triple(item.name, item.cover, null)
             else -> Triple("Unknown", null, null)
         }
     }

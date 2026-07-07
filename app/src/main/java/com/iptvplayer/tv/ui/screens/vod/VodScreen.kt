@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,8 @@ import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.iptvplayer.tv.data.model.VodItem
+import com.iptvplayer.tv.ui.components.TopNavBar
+import com.iptvplayer.tv.ui.components.TopNavItem
 import com.iptvplayer.tv.ui.theme.NovaColors
 
 @Composable
@@ -39,6 +43,11 @@ fun VodScreen(
     playlistId: String,
     onMovieClick: (VodItem, String) -> Unit,  // vodItem, streamUrl
     onBackPress: () -> Unit,
+    onHomeClick: () -> Unit = {},
+    onLiveTVClick: () -> Unit = {},
+    onShowsClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     viewModel: VodViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -72,22 +81,42 @@ fun VodScreen(
         return
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NovaColors.Background)
     ) {
-        // Left Sidebar - Categories
-        CategorySidebar(
-            playlistName = uiState.playlistName,
-            categories = listOf("All") + uiState.categories,
-            selectedIndex = selectedCategoryIndex,
-            onCategorySelected = { index ->
-                val category = if (index == 0) null else uiState.categories.getOrNull(index - 1)
-                viewModel.selectCategory(category)
+        // Top Navigation Bar
+        TopNavBar(
+            selectedItem = TopNavItem.MOVIES,
+            onItemSelected = { item ->
+                when (item) {
+                    TopNavItem.HOME -> onHomeClick()
+                    TopNavItem.LIVE_TV -> onLiveTVClick()
+                    TopNavItem.MOVIES -> { /* Already here */ }
+                    TopNavItem.SHOWS -> onShowsClick()
+                    TopNavItem.WATCHLIST -> onHomeClick() // Go home for watchlist
+                    TopNavItem.SEARCH -> onSearchClick()
+                }
             },
-            onBackPress = onBackPress
+            onSettingsClick = onSettingsClick,
+            onRefreshClick = { viewModel.refresh() },
+            isRefreshing = uiState.isRefreshing
         )
+
+        Row(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Left Sidebar - Categories
+            CategorySidebar(
+                playlistName = uiState.playlistName,
+                categories = listOf("All") + uiState.categories,
+                selectedIndex = selectedCategoryIndex,
+                onCategorySelected = { index ->
+                    val category = if (index == 0) null else uiState.categories.getOrNull(index - 1)
+                    viewModel.selectCategory(category)
+                }
+            )
 
         // Main Content
         Column(
@@ -104,19 +133,29 @@ fun VodScreen(
             } else {
                 // Hero Section
                 selectedItem?.let { item ->
-                    HeroPreview(
-                        vodItem = item,
-                        onPlay = {
-                            val url = viewModel.getStreamUrl(item)
-                            if (url != null) {
-                                onMovieClick(item, url)
-                            }
-                        }
-                    )
+                    HeroPreview(vodItem = item)
                 }
 
                 // Movies Grid with infinite scroll
                 val gridState = rememberTvLazyGridState()
+                val focusRequester = remember { FocusRequester() }
+
+                // Find index of selected item for focus restoration
+                val selectedIndex = remember(uiState.selectedItemId, uiState.vodItems) {
+                    uiState.vodItems.indexOfFirst { it.id == uiState.selectedItemId }.takeIf { it >= 0 } ?: 0
+                }
+
+                // Request focus on selected item when items load or return from details
+                LaunchedEffect(uiState.vodItems.isNotEmpty()) {
+                    if (uiState.vodItems.isNotEmpty()) {
+                        kotlinx.coroutines.delay(100) // Small delay for composition
+                        try {
+                            focusRequester.requestFocus()
+                        } catch (e: Exception) {
+                            // Focus request can fail if not attached
+                        }
+                    }
+                }
 
             // Trigger load more when near end
             LaunchedEffect(gridState.firstVisibleItemIndex, uiState.vodItems.size) {
@@ -135,8 +174,10 @@ fun VodScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(uiState.vodItems, key = { _, item -> item.id }) { index, item ->
+                    val isSelected = index == selectedIndex
                     MovieCard(
                         vodItem = item,
+                        focusRequester = if (isSelected) focusRequester else null,
                         onFocus = {
                             viewModel.setSelectedItem(item.id)
                             // Load more when focusing near end
@@ -168,6 +209,7 @@ fun VodScreen(
                 }
             }
             } // End of else block for non-empty state
+            }
         }
     }
 }
@@ -235,8 +277,7 @@ private fun CategorySidebar(
     playlistName: String,
     categories: List<String>,
     selectedIndex: Int,
-    onCategorySelected: (Int) -> Unit,
-    onBackPress: () -> Unit
+    onCategorySelected: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -245,39 +286,24 @@ private fun CategorySidebar(
             .background(NovaColors.Surface)
             .padding(vertical = 24.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(NovaColors.SurfaceVariant)
-                    .clickable { onBackPress() }
-                    .focusable(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("←", color = NovaColors.TextPrimary, fontSize = 16.sp)
-            }
-            Column {
-                Text(
-                    text = playlistName,
-                    color = NovaColors.TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "Movies",
-                    color = NovaColors.Secondary,
-                    fontSize = 12.sp
-                )
-            }
+            Text(
+                text = playlistName,
+                color = NovaColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "Movies",
+                color = NovaColors.Secondary,
+                fontSize = 12.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -347,8 +373,7 @@ private fun CategoryItem(
 
 @Composable
 private fun HeroPreview(
-    vodItem: VodItem,
-    onPlay: () -> Unit
+    vodItem: VodItem
 ) {
     Box(
         modifier = Modifier
@@ -437,27 +462,28 @@ private fun HeroPreview(
                     )
                 }
 
-                var isFocused by remember { mutableStateOf(false) }
-                Box(
-                    modifier = Modifier
-                        .scale(if (isFocused) 1.05f else 1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(NovaColors.Secondary, NovaColors.Secondary.copy(alpha = 0.8f))
-                            )
-                        )
-                        .onFocusChanged { isFocused = it.isFocused }
-                        .clickable { onPlay() }
-                        .focusable()
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                // Info badges instead of redundant button
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("▶", fontSize = 16.sp)
-                        Text("Watch Now", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    if (vodItem.containerExtension != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(NovaColors.Secondary, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(vodItem.containerExtension.uppercase(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (vodItem.added != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(NovaColors.SurfaceVariant, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("Added: ${vodItem.added}", color = NovaColors.TextSecondary, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -468,6 +494,7 @@ private fun HeroPreview(
 @Composable
 private fun MovieCard(
     vodItem: VodItem,
+    focusRequester: FocusRequester? = null,
     onFocus: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -477,6 +504,7 @@ private fun MovieCard(
         modifier = Modifier
             .width(150.dp)
             .scale(if (isFocused) 1.08f else 1f)
+            .let { m -> if (focusRequester != null) m.focusRequester(focusRequester) else m }
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) onFocus()
@@ -553,7 +581,10 @@ private fun LoadingState() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("🎬", fontSize = 64.sp)
+            androidx.compose.material3.CircularProgressIndicator(
+                color = NovaColors.Primary,
+                modifier = Modifier.size(48.dp)
+            )
             Spacer(modifier = Modifier.height(24.dp))
             Text("Loading movies...", color = NovaColors.TextMuted, fontSize = 18.sp)
         }

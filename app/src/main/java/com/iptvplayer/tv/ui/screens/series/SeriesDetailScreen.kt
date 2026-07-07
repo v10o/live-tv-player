@@ -466,7 +466,10 @@ private fun LoadingState() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("📺", fontSize = 64.sp)
+            androidx.compose.material3.CircularProgressIndicator(
+                color = NovaColors.Primary,
+                modifier = Modifier.size(48.dp)
+            )
             Spacer(modifier = Modifier.height(24.dp))
             Text("Loading series...", color = NovaColors.TextMuted, fontSize = 18.sp)
         }

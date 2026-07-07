@@ -135,6 +135,51 @@ data class XtreamSeriesItem(
     val categoryId: String? = null
 )
 
+// VOD Info Response (from get_vod_info)
+@Serializable
+data class XtreamVodInfo(
+    val info: XtreamVodDetail? = null,
+    @SerialName("movie_data")
+    val movieData: XtreamVodMovieData? = null
+)
+
+@Serializable
+data class XtreamVodDetail(
+    val name: String? = null,
+    @SerialName("movie_image")
+    val movieImage: String? = null,
+    val plot: String? = null,
+    val cast: String? = null,
+    val director: String? = null,
+    val genre: String? = null,
+    @SerialName("release_date")
+    val releaseDate: String? = null,
+    val releasedate: String? = null,  // Some servers use this
+    val rating: String? = null,
+    @SerialName("rating_5based")
+    val rating5based: Double? = null,
+    @SerialName("backdrop_path")
+    val backdropPath: List<String?>? = null,
+    @SerialName("youtube_trailer")
+    val youtubeTrailer: String? = null,
+    val duration: String? = null,
+    @SerialName("duration_secs")
+    val durationSecs: Int? = null,
+    val year: String? = null,
+    val country: String? = null,
+    @SerialName("tmdb_id")
+    val tmdbId: String? = null
+)
+
+@Serializable
+data class XtreamVodMovieData(
+    @SerialName("stream_id")
+    val streamId: Int? = null,
+    val name: String? = null,
+    @SerialName("container_extension")
+    val containerExtension: String? = null
+)
+
 // Series Info Response (from get_series_info)
 @Serializable
 data class XtreamSeriesInfo(

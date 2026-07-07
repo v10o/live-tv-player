@@ -20,6 +20,13 @@ class SettingsViewModel @Inject constructor(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     val playlists = playlistRepository.getAllPlaylists()
+    val tmdbApiKey = settingsRepository.getTmdbApiKey()
+
+    fun saveTmdbApiKey(apiKey: String) {
+        viewModelScope.launch {
+            settingsRepository.setTmdbApiKey(apiKey)
+        }
+    }
 
     fun loadGroupsForPlaylist(playlistId: String) {
         viewModelScope.launch {

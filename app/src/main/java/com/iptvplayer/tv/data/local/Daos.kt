@@ -157,6 +157,22 @@ interface VodDao {
 
     @Query("SELECT * FROM vod_items ORDER BY added DESC LIMIT :limit")
     suspend fun getRecentlyAddedVod(limit: Int): List<VodItem>
+
+    // Find by title (for TMDB matching) - exact match first
+    @Query("SELECT * FROM vod_items WHERE LOWER(name) = LOWER(:title) LIMIT 1")
+    suspend fun findVodByTitle(title: String): VodItem?
+
+    // Find by title (fuzzy match for TMDB)
+    @Query("SELECT * FROM vod_items WHERE LOWER(name) LIKE '%' || LOWER(:title) || '%' LIMIT 1")
+    suspend fun findVodByTitleFuzzy(title: String): VodItem?
+
+    // Find ALL matches by title (for showing multiple options)
+    @Query("SELECT * FROM vod_items WHERE LOWER(name) = LOWER(:title)")
+    suspend fun findAllVodByTitle(title: String): List<VodItem>
+
+    // Find ALL fuzzy matches
+    @Query("SELECT * FROM vod_items WHERE LOWER(name) LIKE '%' || LOWER(:title) || '%' LIMIT 20")
+    suspend fun findAllVodByTitleFuzzy(title: String): List<VodItem>
 }
 
 @Dao
@@ -205,4 +221,53 @@ interface SeriesDao {
 
     @Query("SELECT * FROM series_items ORDER BY id DESC LIMIT :limit")
     suspend fun getRecentlyAddedSeries(limit: Int): List<SeriesItem>
+
+    // Find by title (for TMDB matching) - exact match first
+    @Query("SELECT * FROM series_items WHERE LOWER(name) = LOWER(:title) LIMIT 1")
+    suspend fun findSeriesByTitle(title: String): SeriesItem?
+
+    // Find by title (fuzzy match for TMDB)
+    @Query("SELECT * FROM series_items WHERE LOWER(name) LIKE '%' || LOWER(:title) || '%' LIMIT 1")
+    suspend fun findSeriesByTitleFuzzy(title: String): SeriesItem?
+
+    // Find by seriesId
+    @Query("SELECT * FROM series_items WHERE seriesId = :seriesId LIMIT 1")
+    suspend fun findSeriesBySeriesId(seriesId: Int): SeriesItem?
+}
+
+// Watchlist for VOD and Series
+@Entity(tableName = "watchlist")
+data class WatchlistItem(
+    @PrimaryKey
+    val id: String,
+    val itemId: String,           // VOD or Series ID
+    val playlistId: String,
+    val type: String,             // "vod" or "series"
+    val name: String,
+    val cover: String? = null,
+    val addedDate: Long = System.currentTimeMillis()
+)
+
+@Dao
+interface WatchlistDao {
+    @Query("SELECT * FROM watchlist ORDER BY addedDate DESC")
+    fun getAllWatchlist(): Flow<List<WatchlistItem>>
+
+    @Query("SELECT * FROM watchlist ORDER BY addedDate DESC")
+    suspend fun getAllWatchlistOnce(): List<WatchlistItem>
+
+    @Query("SELECT * FROM watchlist WHERE type = :type ORDER BY addedDate DESC")
+    fun getWatchlistByType(type: String): Flow<List<WatchlistItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWatchlistItem(item: WatchlistItem)
+
+    @Query("DELETE FROM watchlist WHERE itemId = :itemId")
+    suspend fun removeFromWatchlist(itemId: String)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM watchlist WHERE itemId = :itemId)")
+    suspend fun isInWatchlist(itemId: String): Boolean
+
+    @Query("SELECT EXISTS(SELECT 1 FROM watchlist WHERE itemId = :itemId)")
+    fun isInWatchlistFlow(itemId: String): Flow<Boolean>
 }

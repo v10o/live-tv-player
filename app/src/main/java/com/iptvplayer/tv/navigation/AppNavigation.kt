@@ -18,7 +18,9 @@ import com.iptvplayer.tv.ui.screens.series.SeriesDetailScreen
 import com.iptvplayer.tv.ui.screens.series.SeriesScreen
 import com.iptvplayer.tv.ui.screens.settings.SettingsScreen
 import com.iptvplayer.tv.ui.screens.vod.VodScreen
+import com.iptvplayer.tv.ui.screens.vod.VodDetailScreen
 import com.iptvplayer.tv.ui.screens.search.SearchScreen
+import com.iptvplayer.tv.ui.screens.watchlist.WatchlistScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -34,12 +36,17 @@ object Routes {
     const val DIRECT_PLAYER = "direct_player"
     const val SETTINGS = "settings"
     const val SEARCH = "search"
+    const val WATCHLIST = "watchlist"
+    const val VOD_DETAIL = "vod_detail/{vodId}"
+    const val VOD_DETAIL_BY_TITLE = "vod_detail_title/{title}"
 
     fun channels(playlistId: String) = "channels/$playlistId"
     fun epg(playlistId: String) = "epg/$playlistId"
     fun vod(playlistId: String) = "vod/$playlistId"
     fun series(playlistId: String) = "series/$playlistId"
     fun seriesDetail(playlistId: String, seriesId: Int) = "series_detail/$playlistId/$seriesId"
+    fun vodDetail(vodId: String) = "vod_detail/$vodId"
+    fun vodDetailByTitle(title: String) = "vod_detail_title/${URLEncoder.encode(title, "UTF-8")}"
     fun player(channelId: String) = "player/$channelId"
     fun vodPlayer(title: String, url: String) = "vod_player/${URLEncoder.encode(title, "UTF-8")}?url=${URLEncoder.encode(url, "UTF-8")}"
 }
@@ -70,19 +77,32 @@ fun AppNavigation() {
                 onSearchClick = {
                     navController.navigate(Routes.SEARCH)
                 },
+                onWatchlistClick = {
+                    navController.navigate(Routes.WATCHLIST)
+                },
                 onGuideClick = { playlistId ->
                     navController.navigate(Routes.epg(playlistId))
                 },
                 onVodItemClick = { vodItem ->
-                    // Build stream URL and navigate to player
-                    val url = vodViewModel.buildVodStreamUrl(vodItem)
-                    if (url != null) {
-                        navController.navigate(Routes.vodPlayer(vodItem.name, url))
-                    }
+                    // Navigate to movie detail page
+                    navController.navigate(Routes.vodDetail(vodItem.id))
                 },
                 onSeriesItemClick = { seriesItem ->
                     // Navigate to series detail page
                     navController.navigate(Routes.seriesDetail(seriesItem.playlistId, seriesItem.seriesId))
+                },
+                onWatchlistItemClick = { watchlistItem ->
+                    // Navigate based on watchlist item type
+                    if (watchlistItem.type == "vod") {
+                        navController.navigate(Routes.vodDetail(watchlistItem.itemId))
+                    } else {
+                        // For series, itemId is the seriesId stored as String
+                        val seriesId = watchlistItem.itemId.toIntOrNull() ?: 0
+                        navController.navigate(Routes.seriesDetail(watchlistItem.playlistId, seriesId))
+                    }
+                },
+                onTmdbMovieClick = { title ->
+                    navController.navigate(Routes.vodDetailByTitle(title))
                 }
             )
         }
@@ -112,7 +132,12 @@ fun AppNavigation() {
                 onChannelClick = { channelId ->
                     navController.navigate(Routes.player(channelId))
                 },
-                onBackPress = { navController.popBackStack() }
+                onBackPress = { navController.popBackStack() },
+                onHomeClick = { navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
+                onMoviesClick = { navController.navigate(Routes.vod(playlistId)) { popUpTo(Routes.EPG) { inclusive = true } } },
+                onShowsClick = { navController.navigate(Routes.series(playlistId)) { popUpTo(Routes.EPG) { inclusive = true } } },
+                onSearchClick = { navController.navigate(Routes.SEARCH) },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) }
             )
         }
 
@@ -124,8 +149,46 @@ fun AppNavigation() {
             val playlistId = backStackEntry.arguments?.getString("playlistId") ?: return@composable
             VodScreen(
                 playlistId = playlistId,
-                onMovieClick = { vodItem, streamUrl ->
-                    navController.navigate(Routes.vodPlayer(vodItem.name, streamUrl))
+                onMovieClick = { vodItem, _ ->
+                    navController.navigate(Routes.vodDetail(vodItem.id))
+                },
+                onBackPress = { navController.popBackStack() },
+                onHomeClick = { navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
+                onLiveTVClick = { navController.navigate(Routes.epg(playlistId)) { popUpTo(Routes.VOD) { inclusive = true } } },
+                onShowsClick = { navController.navigate(Routes.series(playlistId)) { popUpTo(Routes.VOD) { inclusive = true } } },
+                onSearchClick = { navController.navigate(Routes.SEARCH) },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) }
+            )
+        }
+
+        // VOD Detail
+        composable(
+            route = Routes.VOD_DETAIL,
+            arguments = listOf(navArgument("vodId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val vodId = backStackEntry.arguments?.getString("vodId") ?: return@composable
+            VodDetailScreen(
+                vodId = vodId,
+                onPlayClick = { title, url ->
+                    navController.navigate(Routes.vodPlayer(title, url))
+                },
+                onBackPress = { navController.popBackStack() }
+            )
+        }
+
+        // VOD Detail by Title (for TMDB matches)
+        composable(
+            route = Routes.VOD_DETAIL_BY_TITLE,
+            arguments = listOf(navArgument("title") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val title = backStackEntry.arguments?.getString("title")?.let {
+                URLDecoder.decode(it, "UTF-8")
+            } ?: return@composable
+            VodDetailScreen(
+                vodId = null,
+                searchTitle = title,
+                onPlayClick = { movieTitle, url ->
+                    navController.navigate(Routes.vodPlayer(movieTitle, url))
                 },
                 onBackPress = { navController.popBackStack() }
             )
@@ -142,7 +205,12 @@ fun AppNavigation() {
                 onSeriesClick = { seriesItem ->
                     navController.navigate(Routes.seriesDetail(playlistId, seriesItem.seriesId))
                 },
-                onBackPress = { navController.popBackStack() }
+                onBackPress = { navController.popBackStack() },
+                onHomeClick = { navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
+                onLiveTVClick = { navController.navigate(Routes.epg(playlistId)) { popUpTo(Routes.SERIES) { inclusive = true } } },
+                onMoviesClick = { navController.navigate(Routes.vod(playlistId)) { popUpTo(Routes.SERIES) { inclusive = true } } },
+                onSearchClick = { navController.navigate(Routes.SEARCH) },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) }
             )
         }
 
@@ -206,18 +274,44 @@ fun AppNavigation() {
         }
 
         composable(Routes.SEARCH) {
-            val vodViewModel: VodViewModel = hiltViewModel()
             SearchScreen(
                 onChannelClick = { channel ->
                     navController.navigate(Routes.player(channel.id))
                 },
-                onVodClick = { vodItem, streamUrl ->
-                    navController.navigate(Routes.vodPlayer(vodItem.name, streamUrl))
+                onVodClick = { vodItem, _ ->
+                    navController.navigate(Routes.vodDetail(vodItem.id))
                 },
                 onSeriesClick = { seriesItem ->
                     navController.navigate(Routes.seriesDetail(seriesItem.playlistId, seriesItem.seriesId))
                 },
                 onBackPress = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.WATCHLIST) {
+            WatchlistScreen(
+                onItemClick = { watchlistItem ->
+                    if (watchlistItem.type == "vod") {
+                        navController.navigate(Routes.vodDetail(watchlistItem.itemId))
+                    } else {
+                        val seriesId = watchlistItem.itemId.toIntOrNull() ?: 0
+                        navController.navigate(Routes.seriesDetail(watchlistItem.playlistId, seriesId))
+                    }
+                },
+                onBackPress = { navController.popBackStack() },
+                onHomeClick = { navController.navigate(Routes.HOME) { popUpTo(Routes.HOME) { inclusive = true } } },
+                onLiveTVClick = {
+                    // Need a playlist for Live TV - go home if none
+                    navController.navigate(Routes.HOME)
+                },
+                onMoviesClick = {
+                    navController.navigate(Routes.HOME)
+                },
+                onShowsClick = {
+                    navController.navigate(Routes.HOME)
+                },
+                onSearchClick = { navController.navigate(Routes.SEARCH) },
+                onSettingsClick = { navController.navigate(Routes.SETTINGS) }
             )
         }
 

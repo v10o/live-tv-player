@@ -8,12 +8,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,9 +72,11 @@ fun PlaylistOptionsDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = if (playlist.type == PlaylistType.XTREAM) "🌐" else "📋",
-                        fontSize = 28.sp
+                    Icon(
+                        imageVector = if (playlist.type == PlaylistType.XTREAM) Icons.Default.Language else Icons.Default.PlaylistPlay,
+                        contentDescription = null,
+                        tint = NovaColors.Primary,
+                        modifier = Modifier.size(32.dp)
                     )
                     Column {
                         Text(
@@ -115,14 +121,14 @@ fun PlaylistOptionsDialog(
                     ) {
                         OptionButton(
                             label = "Cancel",
-                            icon = "←",
+                            icon = Icons.Default.ArrowBack,
                             modifier = Modifier.weight(1f),
                             enabled = !isLoading
                         ) { showEditMode = false }
 
                         OptionButton(
                             label = "Save",
-                            icon = "💾",
+                            icon = Icons.Default.Save,
                             isPrimary = true,
                             modifier = Modifier.weight(1f),
                             enabled = !isLoading && name.isNotBlank()
@@ -150,7 +156,7 @@ fun PlaylistOptionsDialog(
                         onLiveTV?.let {
                             OptionButton(
                                 label = "Live TV",
-                                icon = "📺",
+                                icon = Icons.Default.LiveTv,
                                 isPrimary = true,
                                 enabled = !isLoading
                             ) { it(); onDismiss() }
@@ -159,7 +165,7 @@ fun PlaylistOptionsDialog(
                         onMovies?.let {
                             OptionButton(
                                 label = "Movies",
-                                icon = "🎬",
+                                icon = Icons.Default.Movie,
                                 enabled = !isLoading
                             ) { it(); onDismiss() }
                         }
@@ -167,7 +173,7 @@ fun PlaylistOptionsDialog(
                         onSeries?.let {
                             OptionButton(
                                 label = "TV Series",
-                                icon = "📚",
+                                icon = Icons.Default.VideoLibrary,
                                 enabled = !isLoading
                             ) { it(); onDismiss() }
                         }
@@ -185,19 +191,19 @@ fun PlaylistOptionsDialog(
                     // Options Menu
                     OptionButton(
                         label = "Edit Playlist",
-                        icon = "✏️",
+                        icon = Icons.Default.Edit,
                         enabled = !isLoading
                     ) { showEditMode = true }
 
                     OptionButton(
                         label = "Refresh Channels",
-                        icon = "🔄",
+                        icon = Icons.Default.Refresh,
                         enabled = !isLoading
                     ) { onRefresh() }
 
                     OptionButton(
                         label = "Delete Playlist",
-                        icon = "🗑️",
+                        icon = Icons.Default.Delete,
                         isDestructive = true,
                         enabled = !isLoading
                     ) { onDelete() }
@@ -206,7 +212,7 @@ fun PlaylistOptionsDialog(
 
                     OptionButton(
                         label = "Close",
-                        icon = "✕",
+                        icon = Icons.Default.Close,
                         enabled = !isLoading
                     ) { onDismiss() }
                 }
@@ -337,13 +343,19 @@ private fun StatusBox(isLoading: Boolean, error: String?, success: String?) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = when {
-                    success != null -> "✅"
-                    error != null -> "❌"
-                    else -> "⏳"
+            Icon(
+                imageVector = when {
+                    success != null -> Icons.Default.CheckCircle
+                    error != null -> Icons.Default.Error
+                    else -> Icons.Default.Refresh
                 },
-                fontSize = 18.sp
+                contentDescription = null,
+                tint = when {
+                    success != null -> NovaColors.Primary
+                    error != null -> NovaColors.Secondary
+                    else -> NovaColors.TextSecondary
+                },
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 text = when {
@@ -365,7 +377,7 @@ private fun StatusBox(isLoading: Boolean, error: String?, success: String?) {
 @Composable
 private fun OptionButton(
     label: String,
-    icon: String,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
     isDestructive: Boolean = false,
@@ -382,6 +394,13 @@ private fun OptionButton(
         else -> NovaColors.Background
     }
 
+    val iconTint = when {
+        !enabled -> NovaColors.TextMuted
+        isPrimary -> NovaColors.OnPrimary
+        isDestructive -> if (isFocused) NovaColors.OnPrimary else NovaColors.Secondary
+        else -> NovaColors.TextSecondary
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -394,7 +413,12 @@ private fun OptionButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = icon, fontSize = 18.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(20.dp)
+        )
         Text(
             text = label,
             color = when {

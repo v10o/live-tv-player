@@ -35,6 +35,7 @@ class EpgViewModel @Inject constructor(
         get() = playerManager.player
 
     private var allChannels: List<Channel> = emptyList()
+    private var currentPlaylistId: String = ""
 
     // Persist selection across process death
     private var savedCategory: String?
@@ -62,8 +63,9 @@ class EpgViewModel @Inject constructor(
     }
 
     fun loadEpg(playlistId: String) {
+        currentPlaylistId = playlistId
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
             // Load channels from playlist
             playlistRepository.getChannelsByPlaylist(playlistId).collect { channels ->
@@ -111,13 +113,7 @@ class EpgViewModel @Inject constructor(
                         selectedProgram = restoredProgram
                     )
 
-                    // Auto-play the initially selected channel
-                    restoredProgram?.let { program ->
-                        val channel = epgChannels.find { it.id == program.channelId }
-                        channel?.url?.let { url ->
-                            playChannel(url)
-                        }
-                    }
+                    // Don't auto-play - user clicks to play
                 }
             }
         }
@@ -152,37 +148,48 @@ class EpgViewModel @Inject constructor(
                 channels = epgChannels,
                 selectedProgram = currentProgram
             )
-
-            // Auto-play the first channel in new category
-            currentProgram?.let { program ->
-                val channel = epgChannels.find { it.id == program.channelId }
-                channel?.url?.let { url ->
-                    playChannel(url)
-                }
-            }
+            // Don't auto-play - user clicks to play
         }
     }
 
-    private var playbackJob: kotlinx.coroutines.Job? = null
     private var currentPlayingUrl: String? = null
+
+    // Track which channel is playing in mini player for double-click behavior
+    private val _currentPlayingChannelId = MutableStateFlow<String?>(null)
+    val currentPlayingChannelId: StateFlow<String?> = _currentPlayingChannelId.asStateFlow()
 
     fun selectProgram(program: EpgProgram) {
         // Save channel ID for restoration
         savedChannelId = program.channelId
         savedProgramId = program.id
         _uiState.value = _uiState.value.copy(selectedProgram = program)
+        // Don't auto-play - user must click/press enter to play
+    }
 
-        // Cancel previous playback request
-        playbackJob?.cancel()
+    /**
+     * Check if given channel is currently playing in mini player
+     */
+    fun isChannelPlaying(channelId: String): Boolean {
+        return _currentPlayingChannelId.value == channelId
+    }
 
-        // Debounce: wait 300ms before playing to avoid rapid switching
+    fun playSelectedChannel() {
+        val program = _uiState.value.selectedProgram ?: return
         val channel = _uiState.value.channels.find { it.id == program.channelId }
-        channel?.url?.let { url ->
-            playbackJob = viewModelScope.launch {
-                delay(300)
-                playChannel(url)
-            }
+        channel?.let {
+            playChannelById(it.id, it.url)
         }
+    }
+
+    /**
+     * Play channel in mini player. Called on first click.
+     */
+    fun playChannelById(channelId: String, url: String?) {
+        if (url == null) return
+        if (url == currentPlayingUrl) return
+        currentPlayingUrl = url
+        _currentPlayingChannelId.value = channelId
+        playerManager.play(url)
     }
 
     fun playChannel(url: String) {
@@ -194,11 +201,62 @@ class EpgViewModel @Inject constructor(
     fun stopPlayback() {
         playerManager.stop()
         currentPlayingUrl = null
+        _currentPlayingChannelId.value = null
     }
 
     override fun onCleared() {
         super.onCleared()
         playerManager.stop()
+    }
+
+    /**
+     * Refresh Live TV channels from API
+     */
+    fun refresh() {
+        if (currentPlaylistId.isEmpty()) return
+        if (_uiState.value.isLoading || _uiState.value.isRefreshing) return
+
+        // Show full loading state - clear content
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            isRefreshing = true,
+            channels = emptyList(),
+            selectedProgram = null,
+            selectedCategory = "All",
+            error = null
+        )
+
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("EpgVM", "Refreshing channels...")
+                val result = playlistRepository.refreshPlaylist(currentPlaylistId)
+
+                if (result.isFailure) {
+                    android.util.Log.e("EpgVM", "Refresh failed: ${result.exceptionOrNull()?.message}")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = "Refresh failed: ${result.exceptionOrNull()?.message}"
+                    )
+                    return@launch
+                }
+
+                // Reload channels - loadEpg will set isLoading = false when done
+                _uiState.value = _uiState.value.copy(
+                    isRefreshing = false,
+                    lastUpdated = System.currentTimeMillis()
+                )
+                loadEpg(currentPlaylistId)
+                android.util.Log.d("EpgVM", "Channel refresh complete")
+            } catch (e: Exception) {
+                android.util.Log.e("EpgVM", "Refresh exception: ${e.message}", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isRefreshing = false,
+                    error = "Refresh failed: ${e.message}"
+                )
+            }
+        }
     }
 
     /**
@@ -267,5 +325,8 @@ data class EpgUiState(
     val selectedProgram: EpgProgram? = null,
     val currentTime: Long = System.currentTimeMillis(),
     val gridStartTime: Long = System.currentTimeMillis() - (System.currentTimeMillis() % (30 * 60 * 1000)),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val lastUpdated: Long = 0L,
+    val error: String? = null
 )

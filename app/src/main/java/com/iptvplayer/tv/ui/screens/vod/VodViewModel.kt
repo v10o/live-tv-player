@@ -144,6 +144,7 @@ class VodViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             selectedCategory = category,
             vodItems = emptyList(),
+            selectedItemId = null,  // Clear selection so first item gets auto-selected
             isLoading = true
         )
 
@@ -215,6 +216,65 @@ class VodViewModel @Inject constructor(
     private suspend fun getVodCount(playlistId: String): Int {
         return vodRepository.getVodCount(playlistId)
     }
+
+    /**
+     * Refresh VOD data from API (clears cache and re-fetches)
+     */
+    fun refresh() {
+        if (currentPlaylistId.isEmpty()) return
+        if (_uiState.value.isLoading || _uiState.value.isRefreshing) return
+
+        // Show full loading state - clear content
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            isRefreshing = true,
+            vodItems = emptyList(),
+            selectedCategory = null,
+            error = null
+        )
+
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("VodVM", "Refreshing VOD data...")
+                // Re-fetch from API (loadVodForPlaylist handles clearing old data after successful fetch)
+                val loadResult = vodRepository.loadVodForPlaylist(currentPlaylistId)
+
+                if (loadResult.isFailure) {
+                    android.util.Log.e("VodVM", "Refresh failed: ${loadResult.exceptionOrNull()?.message}")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = "Refresh failed: ${loadResult.exceptionOrNull()?.message}"
+                    )
+                    return@launch
+                }
+
+                // Reload categories and items
+                val categories = vodRepository.getVodCategories(currentPlaylistId)
+                val totalCount = vodRepository.getVodCount(currentPlaylistId)
+                currentPage = 0
+                hasMoreItems = true
+
+                _uiState.value = _uiState.value.copy(
+                    categories = categories,
+                    totalCount = totalCount,
+                    lastUpdated = System.currentTimeMillis()
+                )
+
+                loadPage()
+
+                _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
+                android.util.Log.d("VodVM", "VOD refresh complete. Items: ${_uiState.value.vodItems.size}")
+            } catch (e: Exception) {
+                android.util.Log.e("VodVM", "Refresh exception: ${e.message}", e)
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    isRefreshing = false,
+                    error = "Refresh failed: ${e.message}"
+                )
+            }
+        }
+    }
 }
 
 data class VodUiState(
@@ -225,7 +285,9 @@ data class VodUiState(
     val selectedItemId: String? = null,
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
+    val isRefreshing: Boolean = false,
     val canLoadMore: Boolean = true,
     val totalCount: Int = 0,
-    val error: String? = null
+    val error: String? = null,
+    val lastUpdated: Long = 0L
 )

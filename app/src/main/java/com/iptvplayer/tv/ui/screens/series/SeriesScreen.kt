@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,8 @@ import androidx.tv.foundation.lazy.list.itemsIndexed
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.iptvplayer.tv.data.model.SeriesItem
+import com.iptvplayer.tv.ui.components.TopNavBar
+import com.iptvplayer.tv.ui.components.TopNavItem
 import com.iptvplayer.tv.ui.theme.NovaColors
 
 @Composable
@@ -39,6 +43,11 @@ fun SeriesScreen(
     playlistId: String,
     onSeriesClick: (SeriesItem) -> Unit,
     onBackPress: () -> Unit,
+    onHomeClick: () -> Unit = {},
+    onLiveTVClick: () -> Unit = {},
+    onMoviesClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     viewModel: SeriesViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -72,22 +81,42 @@ fun SeriesScreen(
         return
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(NovaColors.Background)
     ) {
-        // Left Sidebar
-        CategorySidebar(
-            playlistName = uiState.playlistName,
-            categories = listOf("All") + uiState.categories,
-            selectedIndex = selectedCategoryIndex,
-            onCategorySelected = { index ->
-                val category = if (index == 0) null else uiState.categories.getOrNull(index - 1)
-                viewModel.selectCategory(category)
+        // Top Navigation Bar
+        TopNavBar(
+            selectedItem = TopNavItem.SHOWS,
+            onItemSelected = { item ->
+                when (item) {
+                    TopNavItem.HOME -> onHomeClick()
+                    TopNavItem.LIVE_TV -> onLiveTVClick()
+                    TopNavItem.MOVIES -> onMoviesClick()
+                    TopNavItem.SHOWS -> { /* Already here */ }
+                    TopNavItem.WATCHLIST -> onHomeClick()
+                    TopNavItem.SEARCH -> onSearchClick()
+                }
             },
-            onBackPress = onBackPress
+            onSettingsClick = onSettingsClick,
+            onRefreshClick = { viewModel.refresh() },
+            isRefreshing = uiState.isRefreshing
         )
+
+        Row(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Left Sidebar
+            CategorySidebar(
+                playlistName = uiState.playlistName,
+                categories = listOf("All") + uiState.categories,
+                selectedIndex = selectedCategoryIndex,
+                onCategorySelected = { index ->
+                    val category = if (index == 0) null else uiState.categories.getOrNull(index - 1)
+                    viewModel.selectCategory(category)
+                }
+            )
 
         // Main Content
         Column(
@@ -104,14 +133,27 @@ fun SeriesScreen(
             } else {
                 // Hero Section
                 selectedItem?.let { item ->
-                    HeroPreview(
-                        seriesItem = item,
-                        onSelect = { onSeriesClick(item) }
-                    )
+                    HeroPreview(seriesItem = item)
                 }
 
                 // Series Grid with infinite scroll
                 val gridState = rememberTvLazyGridState()
+                val focusRequester = remember { FocusRequester() }
+
+                // Find index of selected item for focus restoration
+                val selectedIndex = remember(uiState.selectedItemId, uiState.seriesItems) {
+                    uiState.seriesItems.indexOfFirst { it.id == uiState.selectedItemId }.takeIf { it >= 0 } ?: 0
+                }
+
+                // Request focus on selected item when items load
+                LaunchedEffect(uiState.seriesItems.isNotEmpty()) {
+                    if (uiState.seriesItems.isNotEmpty()) {
+                        kotlinx.coroutines.delay(100)
+                        try {
+                            focusRequester.requestFocus()
+                        } catch (e: Exception) { }
+                    }
+                }
 
             // Trigger load more when near end
             LaunchedEffect(gridState.firstVisibleItemIndex, uiState.seriesItems.size) {
@@ -130,8 +172,10 @@ fun SeriesScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 itemsIndexed(uiState.seriesItems, key = { _, item -> item.id }) { index, item ->
+                    val isSelected = index == selectedIndex
                     SeriesCard(
                         seriesItem = item,
+                        focusRequester = if (isSelected) focusRequester else null,
                         onFocus = {
                             viewModel.setSelectedItem(item.id)
                             if (index >= uiState.seriesItems.size - 6 && uiState.canLoadMore) {
@@ -156,6 +200,7 @@ fun SeriesScreen(
                 }
             }
             } // End of else block for non-empty state
+            }
         }
     }
 }
@@ -223,8 +268,7 @@ private fun CategorySidebar(
     playlistName: String,
     categories: List<String>,
     selectedIndex: Int,
-    onCategorySelected: (Int) -> Unit,
-    onBackPress: () -> Unit
+    onCategorySelected: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -233,39 +277,24 @@ private fun CategorySidebar(
             .background(NovaColors.Surface)
             .padding(vertical = 24.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(NovaColors.SurfaceVariant)
-                    .clickable { onBackPress() }
-                    .focusable(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("←", color = NovaColors.TextPrimary, fontSize = 16.sp)
-            }
-            Column {
-                Text(
-                    text = playlistName,
-                    color = NovaColors.TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "TV Series",
-                    color = NovaColors.Primary,
-                    fontSize = 12.sp
-                )
-            }
+            Text(
+                text = playlistName,
+                color = NovaColors.TextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "TV Series",
+                color = NovaColors.Primary,
+                fontSize = 12.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -335,8 +364,7 @@ private fun CategoryItem(
 
 @Composable
 private fun HeroPreview(
-    seriesItem: SeriesItem,
-    onSelect: () -> Unit
+    seriesItem: SeriesItem
 ) {
     Box(
         modifier = Modifier
@@ -436,27 +464,28 @@ private fun HeroPreview(
                     }
                 }
 
-                var isFocused by remember { mutableStateOf(false) }
-                Box(
-                    modifier = Modifier
-                        .scale(if (isFocused) 1.05f else 1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(NovaColors.Primary, NovaColors.PrimaryDark)
-                            )
-                        )
-                        .onFocusChanged { isFocused = it.isFocused }
-                        .clickable { onSelect() }
-                        .focusable()
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                // Info badges instead of redundant button
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("📺", fontSize = 16.sp)
-                        Text("View Details", color = NovaColors.OnPrimary, fontWeight = FontWeight.SemiBold)
+                    if (seriesItem.releaseDate != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(NovaColors.SurfaceVariant, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(seriesItem.releaseDate, color = NovaColors.TextSecondary, fontSize = 13.sp)
+                        }
+                    }
+                    if (seriesItem.episodeRunTime != null) {
+                        Box(
+                            modifier = Modifier
+                                .background(NovaColors.Primary.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text("${seriesItem.episodeRunTime} min/ep", color = NovaColors.Primary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }
@@ -467,6 +496,7 @@ private fun HeroPreview(
 @Composable
 private fun SeriesCard(
     seriesItem: SeriesItem,
+    focusRequester: FocusRequester? = null,
     onFocus: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -476,6 +506,7 @@ private fun SeriesCard(
         modifier = Modifier
             .width(150.dp)
             .scale(if (isFocused) 1.08f else 1f)
+            .let { m -> if (focusRequester != null) m.focusRequester(focusRequester) else m }
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) onFocus()
@@ -551,7 +582,10 @@ private fun LoadingState() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("📺", fontSize = 64.sp)
+            androidx.compose.material3.CircularProgressIndicator(
+                color = NovaColors.Primary,
+                modifier = Modifier.size(48.dp)
+            )
             Spacer(modifier = Modifier.height(24.dp))
             Text("Loading series...", color = NovaColors.TextMuted, fontSize = 18.sp)
         }

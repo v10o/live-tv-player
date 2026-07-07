@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
@@ -183,6 +184,7 @@ fun VodPlayerScreen(
                 onPlayPause = { if (playerState.isPlaying) viewModel.pause() else viewModel.resume() },
                 onSeekBack = { viewModel.seekBack() },
                 onSeekForward = { viewModel.seekForward() },
+                onSeekTo = { position -> viewModel.seekTo(position) },
                 onBack = {
                     viewModel.stop()
                     onBackPress()
@@ -205,6 +207,7 @@ private fun VodControlsOverlay(
     onPlayPause: () -> Unit,
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
+    onSeekTo: (Long) -> Unit,
     onBack: () -> Unit
 ) {
     Box(
@@ -314,29 +317,112 @@ private fun VodControlsOverlay(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Progress bar
+            // Seekable progress bar
             if (duration > 0) {
+                var isSeeking by remember { mutableStateOf(false) }
+                var seekPosition by remember { mutableStateOf(currentPosition) }
+                var isProgressFocused by remember { mutableStateOf(false) }
+
+                // Update seek position when not seeking
+                LaunchedEffect(currentPosition, isSeeking) {
+                    if (!isSeeking) {
+                        seekPosition = currentPosition
+                    }
+                }
+
+                val displayPosition = if (isSeeking) seekPosition else currentPosition
+                val progress = (displayPosition.toFloat() / duration).coerceIn(0f, 1f)
+
+                // Progress bar container - focusable for D-pad seeking
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .height(if (isProgressFocused) 12.dp else 6.dp)
+                        .clip(RoundedCornerShape(6.dp))
                         .background(Color.White.copy(alpha = 0.3f))
+                        .focusable()
+                        .onFocusChanged {
+                            isProgressFocused = it.isFocused
+                            if (!it.isFocused && isSeeking) {
+                                // Apply seek when losing focus
+                                onSeekTo(seekPosition)
+                                isSeeking = false
+                            }
+                        }
+                        .onKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && isProgressFocused) {
+                                val seekStep = duration / 100  // 1% of total duration
+                                val bigSeekStep = duration / 20  // 5% of total duration
+                                when (event.key) {
+                                    Key.DirectionLeft -> {
+                                        isSeeking = true
+                                        seekPosition = (seekPosition - seekStep).coerceIn(0, duration)
+                                        true
+                                    }
+                                    Key.DirectionRight -> {
+                                        isSeeking = true
+                                        seekPosition = (seekPosition + seekStep).coerceIn(0, duration)
+                                        true
+                                    }
+                                    Key.DirectionCenter, Key.Enter -> {
+                                        if (isSeeking) {
+                                            onSeekTo(seekPosition)
+                                            isSeeking = false
+                                        }
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            } else false
+                        }
                 ) {
+                    // Progress fill
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .fillMaxWidth((currentPosition.toFloat() / duration).coerceIn(0f, 1f))
-                            .background(Color.White, RoundedCornerShape(2.dp))
+                            .fillMaxWidth(progress)
+                            .background(
+                                if (isProgressFocused) NovaColors.Primary else Color.White,
+                                RoundedCornerShape(6.dp)
+                            )
                     )
+
+                    // Seek thumb when focused
+                    if (isProgressFocused) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = (progress * 1000).dp - 8.dp)  // Approximate offset
+                                .size(16.dp)
+                                .align(Alignment.CenterStart)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                    }
                 }
+
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(formatDuration(currentPosition), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                    Text(formatDuration(duration), color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Text(
+                        formatDuration(displayPosition),
+                        color = if (isSeeking) NovaColors.Primary else Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        fontWeight = if (isSeeking) FontWeight.Bold else FontWeight.Normal
+                    )
+                    Text(formatDuration(duration), color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                }
+
+                // Seeking hint
+                if (isProgressFocused) {
+                    Text(
+                        text = "← → to seek, OK to confirm",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                 }
             }
         }

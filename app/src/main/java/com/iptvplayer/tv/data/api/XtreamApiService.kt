@@ -10,7 +10,6 @@ import io.ktor.http.isSuccess
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
-import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -116,15 +115,15 @@ class XtreamApiService @Inject constructor(
 
     suspend fun getLiveStreams(credentials: XtreamCredentials): Result<List<XtreamLiveStream>> {
         return try {
-            android.util.Log.d("XtreamAPI", "Fetching live streams (streaming)...")
-            val response = httpClient.get(buildUrl(credentials, "get_live_streams"))
+            val url = buildUrl(credentials, "get_live_streams")
+            android.util.Log.d("XtreamAPI", "Fetching live streams from: $url")
+            val response = httpClient.get(url)
 
             if (!response.status.isSuccess()) {
                 return Result.failure(Exception("HTTP ${response.status.value}"))
             }
 
-            // Use streaming to avoid OOM
-            val streams = response.body<InputStream>().use { inputStream ->
+            val streams = response.body<java.io.InputStream>().use { inputStream ->
                 json.decodeFromStream<List<XtreamLiveStream>>(inputStream)
             }
 
@@ -138,15 +137,16 @@ class XtreamApiService @Inject constructor(
 
     suspend fun getVodStreams(credentials: XtreamCredentials): Result<List<XtreamVodStream>> {
         return try {
-            android.util.Log.d("XtreamAPI", "Fetching VOD streams (streaming)...")
-            val response = httpClient.get(buildUrl(credentials, "get_vod_streams"))
+            val url = buildUrl(credentials, "get_vod_streams")
+            android.util.Log.d("XtreamAPI", "Fetching VOD streams from: $url")
+            val response = httpClient.get(url)
 
             if (!response.status.isSuccess()) {
                 return Result.failure(Exception("HTTP ${response.status.value}"))
             }
 
-            // Use streaming to avoid OOM - don't load entire response as String
-            val streams = response.body<InputStream>().use { inputStream ->
+            // Stream parse to avoid OOM
+            val streams = response.body<java.io.InputStream>().use { inputStream ->
                 json.decodeFromStream<List<XtreamVodStream>>(inputStream)
             }
 
@@ -160,15 +160,15 @@ class XtreamApiService @Inject constructor(
 
     suspend fun getSeriesStreams(credentials: XtreamCredentials): Result<List<XtreamSeriesItem>> {
         return try {
-            android.util.Log.d("XtreamAPI", "Fetching series (streaming)...")
-            val response = httpClient.get(buildUrl(credentials, "get_series"))
+            val url = buildUrl(credentials, "get_series")
+            android.util.Log.d("XtreamAPI", "Fetching series from: $url")
+            val response = httpClient.get(url)
 
             if (!response.status.isSuccess()) {
                 return Result.failure(Exception("HTTP ${response.status.value}"))
             }
 
-            // Use streaming to avoid OOM - don't load entire response as String
-            val series = response.body<InputStream>().use { inputStream ->
+            val series = response.body<java.io.InputStream>().use { inputStream ->
                 json.decodeFromStream<List<XtreamSeriesItem>>(inputStream)
             }
 
@@ -191,6 +191,21 @@ class XtreamApiService @Inject constructor(
             Result.success(seriesInfo)
         } catch (e: Exception) {
             android.util.Log.e("XtreamAPI", "Error getting series info", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getVodInfo(credentials: XtreamCredentials, vodId: Int): Result<XtreamVodInfo> {
+        return try {
+            val url = buildUrlWithParam(credentials, "get_vod_info", "vod_id", vodId.toString())
+            android.util.Log.d("XtreamAPI", "Getting VOD info: $url")
+            val response = httpClient.get(url)
+            val body = response.bodyAsText()
+            android.util.Log.d("XtreamAPI", "VOD info response: ${body.take(500)}")
+            val vodInfo = json.decodeFromString<XtreamVodInfo>(body)
+            Result.success(vodInfo)
+        } catch (e: Exception) {
+            android.util.Log.e("XtreamAPI", "Error getting VOD info", e)
             Result.failure(e)
         }
     }

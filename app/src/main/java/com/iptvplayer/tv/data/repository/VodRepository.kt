@@ -23,6 +23,16 @@ class VodRepository @Inject constructor(
         seriesDao.deleteSeriesByPlaylist(playlistId)
     }
 
+    // Delete only VOD data (for refresh)
+    suspend fun deleteVodData(playlistId: String) {
+        vodDao.deleteVodByPlaylist(playlistId)
+    }
+
+    // Delete only Series data (for refresh)
+    suspend fun deleteSeriesData(playlistId: String) {
+        seriesDao.deleteSeriesByPlaylist(playlistId)
+    }
+
     // Check if VOD data exists in cache
     suspend fun hasVodData(playlistId: String): Boolean = vodDao.getVodCount(playlistId) > 0
     suspend fun hasSeriesData(playlistId: String): Boolean = seriesDao.getSeriesCount(playlistId) > 0
@@ -309,5 +319,61 @@ class VodRepository @Inject constructor(
         }
 
         return result
+    }
+
+    /**
+     * Find VOD by title (for TMDB matching)
+     * Tries exact match first, then fuzzy
+     */
+    suspend fun findVodByTitle(title: String): VodItem? {
+        android.util.Log.d("VodRepo", "Finding VOD by title: $title")
+        // Try exact match first
+        vodDao.findVodByTitle(title)?.let {
+            android.util.Log.d("VodRepo", "Exact match found: ${it.name}")
+            return it
+        }
+        // Try fuzzy match
+        val fuzzy = vodDao.findVodByTitleFuzzy(title)
+        android.util.Log.d("VodRepo", "Fuzzy match result: ${fuzzy?.name ?: "none"}")
+        return fuzzy
+    }
+
+    /**
+     * Find Series by title (for TMDB matching)
+     * Tries exact match first, then fuzzy
+     */
+    suspend fun findSeriesByTitle(title: String): SeriesItem? {
+        android.util.Log.d("VodRepo", "Finding Series by title: $title")
+        // Try exact match first
+        seriesDao.findSeriesByTitle(title)?.let {
+            android.util.Log.d("VodRepo", "Exact match found: ${it.name}")
+            return it
+        }
+        // Try fuzzy match
+        val fuzzy = seriesDao.findSeriesByTitleFuzzy(title)
+        android.util.Log.d("VodRepo", "Fuzzy match result: ${fuzzy?.name ?: "none"}")
+        return fuzzy
+    }
+
+    /**
+     * Find Series by seriesId
+     */
+    suspend fun findSeriesBySeriesId(seriesId: Int): SeriesItem? = seriesDao.findSeriesBySeriesId(seriesId)
+
+    /**
+     * Find ALL VOD items matching title (for showing multiple options)
+     */
+    suspend fun findAllVodByTitle(title: String): List<VodItem> {
+        android.util.Log.d("VodRepo", "Finding all VOD by title: $title")
+        // Try exact match first
+        val exact = vodDao.findAllVodByTitle(title)
+        if (exact.isNotEmpty()) {
+            android.util.Log.d("VodRepo", "Found ${exact.size} exact matches")
+            return exact
+        }
+        // Try fuzzy match
+        val fuzzy = vodDao.findAllVodByTitleFuzzy(title)
+        android.util.Log.d("VodRepo", "Found ${fuzzy.size} fuzzy matches")
+        return fuzzy
     }
 }
