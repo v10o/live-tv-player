@@ -1,10 +1,8 @@
 package com.iptvplayer.tv.ui.components
 
-import android.view.KeyEvent
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,7 +15,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,12 +24,10 @@ import com.iptvplayer.tv.data.model.Playlist
 import com.iptvplayer.tv.data.model.PlaylistType
 import com.iptvplayer.tv.ui.theme.NovaColors
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlaylistCard(
     playlist: Playlist,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(16.dp)
@@ -65,24 +60,7 @@ fun PlaylistCard(
                     Modifier.border(1.dp, NovaColors.Border, shape)
                 }
             )
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .onKeyEvent { event ->
-                // Menu key or 'M' key triggers options (for emulator testing)
-                if (event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                    when (event.nativeKeyEvent.keyCode) {
-                        KeyEvent.KEYCODE_MENU,
-                        KeyEvent.KEYCODE_M,
-                        KeyEvent.KEYCODE_INFO -> {
-                            onLongClick()
-                            true
-                        }
-                        else -> false
-                    }
-                } else false
-            }
+            .clickable { onClick() }
             .focusable()
     ) {
         // Decorative gradient corner

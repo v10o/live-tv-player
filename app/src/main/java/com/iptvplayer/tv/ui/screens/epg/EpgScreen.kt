@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -66,6 +67,15 @@ fun EpgScreen(
     val playerState by viewModel.playerState.collectAsState()
     val currentPlayingChannelId by viewModel.currentPlayingChannelId.collectAsState()
     val gridFocusRequester = remember { FocusRequester() }
+
+    // Keep screen on while mini player is playing
+    val view = LocalView.current
+    DisposableEffect(playerState.isPlaying) {
+        view.keepScreenOn = playerState.isPlaying
+        onDispose {
+            view.keepScreenOn = false
+        }
+    }
 
     LaunchedEffect(playlistId) {
         viewModel.loadEpg(playlistId)

@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +44,15 @@ fun PlayerScreen(
     val channel by viewModel.currentChannel.collectAsState()
     var showControls by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
+
+    // Keep screen on while playing
+    val view = LocalView.current
+    DisposableEffect(playerState.isPlaying) {
+        view.keepScreenOn = playerState.isPlaying
+        onDispose {
+            view.keepScreenOn = false
+        }
+    }
 
     LaunchedEffect(channelId) {
         viewModel.loadChannel(channelId)

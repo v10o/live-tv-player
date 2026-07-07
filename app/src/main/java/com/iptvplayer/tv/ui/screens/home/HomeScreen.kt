@@ -277,8 +277,7 @@ fun HomeScreen(
                             items(playlists, key = { it.id }) { playlist ->
                                 PlaylistCard(
                                     playlist = playlist,
-                                    onClick = { onPlaylistClick(playlist.id) },
-                                    onLongClick = { viewModel.showPlaylistOptions(playlist) }
+                                    onClick = { viewModel.showPlaylistOptions(playlist) }
                                 )
                             }
                         }
