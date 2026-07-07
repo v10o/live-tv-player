@@ -2,10 +2,10 @@ name: Build & Release
 
 on:
   push:
-    branches: [master]
+    branches: [develop]
     tags: ['v*']
   pull_request:
-    branches: [master]
+    branches: [release]
   workflow_dispatch:
 
 jobs:
