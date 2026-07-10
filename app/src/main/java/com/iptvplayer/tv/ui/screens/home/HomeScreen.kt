@@ -148,15 +148,14 @@ fun HomeScreen(
             TvLazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Hero Carousel - top rated content
+                // Hero Carousel - top rated content (TMDB trending)
                 if (dashboardState.heroItems.isNotEmpty()) {
                     item {
                         HeroCarousel(
                             items = dashboardState.heroItems,
                             onItemClick = { item ->
-                                when (item) {
-                                    is VodItem -> onVodItemClick(item)
-                                    is SeriesItem -> onSeriesItemClick(item)
+                                if (item is TmdbItem) {
+                                    onTmdbItemClick(item)
                                 }
                             }
                         )

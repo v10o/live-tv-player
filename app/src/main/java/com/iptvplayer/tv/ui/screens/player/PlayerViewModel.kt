@@ -111,8 +111,10 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        // Save position only. The full player does NOT own playback lifecycle:
+        // PlayerManager is a singleton shared with the EPG mini player. Stopping
+        // here would kill the stream the mini player is showing. Lifecycle of
+        // the player is owned by EpgViewModel and PlayerManager.play()/stop().
         savePosition()
-        // Don't release - PlayerManager is singleton, just stop
-        playerManager.stop()
     }
 }

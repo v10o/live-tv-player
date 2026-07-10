@@ -34,8 +34,8 @@ class DirectPlayerViewModel @Inject constructor(
         playerManager.stop()
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        playerManager.release()
-    }
+    // Note: PlayerManager is a @Singleton tied to the Application lifecycle.
+    // Do NOT release it here — the mini player in EPG and any other consumer
+    // share the same ExoPlayer instance. Releasing on clear would kill the
+    // stream for the mini player the moment the user navigates back.
 }

@@ -32,7 +32,7 @@ data class PlaylistOptionsState(
 )
 
 data class DashboardState(
-    val heroItems: List<Any> = emptyList(),
+    val heroItems: List<TmdbItem> = emptyList(),
     val topMovies: List<VodItem> = emptyList(),
     val topSeries: List<SeriesItem> = emptyList(),
     val recentlyAdded: List<Any> = emptyList(),
@@ -64,19 +64,24 @@ class HomeViewModel @Inject constructor(
             _dashboardState.value = DashboardState(isLoading = true)
 
             try {
-                val heroItems = vodRepository.getHeroItems(5)
                 val topMovies = vodRepository.getTopRatedMovies(20)
                 val topSeries = vodRepository.getTopRatedSeries(20)
                 val recentlyAdded = vodRepository.getRecentlyAddedContent(20)
                 val watchlist = watchlistRepository.getAllWatchlistOnce()
 
-                // Fetch TMDB trending content
+                // Fetch TMDB trending content - use for hero carousel (10 items)
                 android.util.Log.d("HomeVM", "Fetching TMDB trending content...")
                 val trendingMoviesResult = tmdbApiService.getTrendingMovies(10)
                 val trendingShowsResult = tmdbApiService.getTrendingShows(10)
                 val trendingMovies = trendingMoviesResult.getOrNull() ?: emptyList()
                 val trendingShows = trendingShowsResult.getOrNull() ?: emptyList()
-                android.util.Log.d("HomeVM", "TMDB trending - Movies: ${trendingMovies.size}, Shows: ${trendingShows.size}")
+
+                // Combine and sort by rank for hero carousel
+                val heroItems = (trendingMovies + trendingShows)
+                    .sortedBy { it.rank }
+                    .take(10)
+
+                android.util.Log.d("HomeVM", "TMDB trending - Movies: ${trendingMovies.size}, Shows: ${trendingShows.size}, Hero: ${heroItems.size}")
                 if (trendingMoviesResult.isFailure) {
                     android.util.Log.e("HomeVM", "TMDB movies failed: ${trendingMoviesResult.exceptionOrNull()?.message}")
                 }

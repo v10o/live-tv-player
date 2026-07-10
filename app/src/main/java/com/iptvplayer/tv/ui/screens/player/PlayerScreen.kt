@@ -67,7 +67,9 @@ fun PlayerScreen(
     }
 
     BackHandler {
-        viewModel.stop()
+        // Just navigate back. The full player does not own playback
+        // lifecycle — PlayerManager is shared with the EPG mini player.
+        // Stopping here would kill the stream the mini player shows.
         onBackPress()
     }
 
